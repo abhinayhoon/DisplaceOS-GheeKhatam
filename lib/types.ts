@@ -32,11 +32,11 @@ export type LiveState = {
 export type Role = "GOV_AGENCY" | "RELIEF_CAMP" | "RESCUE_TEAM";
 export type Perm = "REBALANCE" | "APPROVE" | "SIMULATE" | "REQUEST" | "STOCK" | "REGISTER" | "DISPATCH" | "TRIAGE_STATUS" | "VERIFY" | "REINFORCE" | "FACILITY";
 
-export type Operator = { badgeId: string; name: string; role: Role; campName: string | null; title: string; hint: string };
+export type Operator = { badgeId: string; name: string; role: Role; campName: string | null };
 export const OPERATORS: Operator[] = [
-  { badgeId: "NDMA-CMD-01", name: "National Disaster Command", role: "GOV_AGENCY", campName: null, title: "Cross-district rebalance, request approval, depot dispatch", hint: "NDMA-2026" },
-  { badgeId: "CAMP-ALPHA-04", name: "Relief Camp Manager", role: "RELIEF_CAMP", campName: "Camp Alpha", title: "SOS requests, live inventory, survivor registration", hint: "CAMP-2026" },
-  { badgeId: "NDRF-UNIT-09", name: "NDRF Field Unit", role: "RESCUE_TEAM", campName: null, title: "Convoy progress, landslide detour, mark delivered", hint: "NDRF-2026" },
+  { badgeId: "NDMA-CMD-01", name: "National Disaster Command", role: "GOV_AGENCY", campName: null },
+  { badgeId: "CAMP-ALPHA-04", name: "Relief Camp Manager", role: "RELIEF_CAMP", campName: "Camp Alpha" },
+  { badgeId: "NDRF-UNIT-09", name: "NDRF Field Unit", role: "RESCUE_TEAM", campName: null },
 ];
 export type OperatorUser = { badgeId: string; name: string; role: Role; campName: string | null };
 
@@ -51,18 +51,19 @@ export const ROLES: Record<Role, { label: string; short: string; badge: string; 
   },
   RESCUE_TEAM: {
     label: "🚁 Rescue Team (NDRF Field Unit)", short: "NDRF Field Unit", badge: "FIELD OPS · DISPATCH · DELIVER",
-    perms: ["DISPATCH", "VERIFY"],
+    perms: ["DISPATCH", "VERIFY", "TRIAGE_STATUS"],
   },
 };
 
 /** Role that holds a permission, used for the "Switch to Required Role" prompt. */
 export const PERM_ROLE: Record<Perm, Role> = {
-  REBALANCE: "GOV_AGENCY", APPROVE: "GOV_AGENCY", SIMULATE: "GOV_AGENCY", TRIAGE_STATUS: "GOV_AGENCY",
+  REBALANCE: "GOV_AGENCY", APPROVE: "GOV_AGENCY", SIMULATE: "GOV_AGENCY", TRIAGE_STATUS: "RESCUE_TEAM",
   VERIFY: "RESCUE_TEAM", REINFORCE: "GOV_AGENCY", FACILITY: "RELIEF_CAMP",
   REQUEST: "RELIEF_CAMP", STOCK: "RELIEF_CAMP", REGISTER: "RELIEF_CAMP", DISPATCH: "RESCUE_TEAM",
 };
 
-export const card = "rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_8px_32px_0_rgba(0,0,0,0.37)]";
+export const card = "rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur-xl shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all duration-300 hover:border-cyan-500/30";
+export const pill = "text-xs font-mono tracking-widest uppercase px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20";
 
 export function runwayHours(c: Camp) {
   return c.burnRatePerHour > 0 ? c.foodPackets / c.burnRatePerHour : 99;

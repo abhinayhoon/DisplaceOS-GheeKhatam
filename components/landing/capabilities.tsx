@@ -7,15 +7,15 @@ import Reveal from "./reveal";
 export default function Capabilities() {
   const { data } = useApp();
   const cells = [
-    { n: <CountUp to={data?.camps.length ?? 6} />, l: "camps monitored", note: data ? "Live from database" : "Seed scenario" },
-    { n: <CountUp to={3} />, l: "role-based views", note: "Gov · Camp · Rescue" },
-    { n: <span className="tabular-nums">&lt;1s</span>, l: "reroute", note: "Demo scenario" },
-    { n: <CountUp to={0} />, l: "duplicate shipments after rebalance", note: "Demo scenario" },
+    { n: <CountUp to={data?.camps.length ?? 6} />, l: "camp records", note: "Sample or operator-entered" },
+    { n: <CountUp to={3} />, l: "role-based views", note: "Government · Camp · Rescue" },
+    { n: <span className="tabular-nums">3s</span>, l: "server refresh", note: "Visible tabs only · polling" },
+    { n: <CountUp to={1} />, l: "weather model feed", note: "Forecast context · not an official warning" },
   ];
   return (
     <section id="capabilities" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-32 sm:px-6">
       <Reveal>
-        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#F59E0B]">Fixed capabilities</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#F59E0B]">Prototype capabilities</p>
       </Reveal>
       <Reveal className="mt-10 grid border-y border-white/10 lg:grid-cols-4" delay={0.1}>
         {cells.map((c, i) => (

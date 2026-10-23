@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export const fieldClass = "w-full rounded-lg border border-white/10 bg-[#030712] px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 focus:border-[#F59E0B]";
+export const fieldClass = "w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/60 focus:shadow-[0_0_0_4px_rgba(34,211,238,0.12)]";
 
 export default function PasswordField({ id, value, onChange, autoComplete }: { id: string; value: string; onChange: (v: string) => void; autoComplete: string }) {
   const [show, setShow] = useState(false);

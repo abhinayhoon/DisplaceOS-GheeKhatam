@@ -16,7 +16,7 @@ export default function LandingNav() {
   const bg = useTransform(scrollY, [0, 120], [0, 1]);
   return (
     <header className="fixed inset-x-0 top-0 z-50">
-      <motion.div aria-hidden style={{ opacity: bg }} className="absolute inset-0 border-b border-white/10 bg-[#030712]/60 backdrop-blur-xl" />
+      <motion.div aria-hidden style={{ opacity: bg }} className="absolute inset-0 border-b border-white/10 bg-[#020408]/60 backdrop-blur-xl" />
       <nav aria-label="Primary" className="relative mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="text-sm font-bold tracking-tight text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F59E0B]">
           Displace<span className="text-[#F59E0B]">OS</span>

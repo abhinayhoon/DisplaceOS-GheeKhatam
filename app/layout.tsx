@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "DisplaceOS — Unified Disaster Relief Coordination",
-  description: "Real-time crisis command: eliminate duplicate deliveries, medicine blindspots and spreadsheet delays in the first 72 hours.",
+  description: "A disaster-response coordination prototype for camp resources, requests, dispatches, and survivor records.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -29,7 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-[#030712] text-slate-200">
+      <body className="flex min-h-full flex-col bg-[#020408] text-slate-200">
         <AppProvider>
           <SmoothScroll>
             <AmbientBg />

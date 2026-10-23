@@ -12,7 +12,7 @@ const heading =
   "[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-slate-500";
 
 export default function CommandPalette() {
-  const { data, paletteOpen, setPaletteOpen, setSelectedCampId, setSurvivorQuery, rebalance, flood, reset, openLogin, login, user, offline, setOffline, setMeshOpen } = useApp();
+  const { data, paletteOpen, setPaletteOpen, setSelectedCampId, setSurvivorQuery, rebalance, flood, reset, openLogin, login, user, role, offline, setOffline, setMeshOpen } = useApp();
   const router = useRouter();
 
   useEffect(() => {
@@ -40,28 +40,28 @@ export default function CommandPalette() {
       contentClassName="fixed left-1/2 top-[18vh] z-[100] w-[min(92vw,600px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/10 bg-[#0F1624] shadow-2xl shadow-black/60"
     >
       <Command.Input
-        placeholder="Jump to camp, search survivor, rebalance, switch role…"
+        placeholder="Jump to camp, search survivor, suggest transfers, switch role…"
         className="w-full border-b border-white/10 bg-transparent px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500"
       />
       <Command.List data-lenis-prevent className="max-h-[50vh] overflow-y-auto p-2">
         <Command.Empty className="px-3 py-6 text-center text-sm text-slate-500">No match.</Command.Empty>
         <Command.Group heading="Actions" className={heading}>
           <Command.Item className={item} onSelect={go(() => { router.push("/dashboard"); rebalance(); })}>
-            🧠 Auto-Rebalance Surplus
+            🧠 Create Suggested Transfers
           </Command.Item>
-          <Command.Item className={item} onSelect={go(() => { router.push("/dashboard"); flood(); })}>
+          {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && <Command.Item className={item} onSelect={go(() => { router.push("/dashboard"); flood(); })}>
             ⚡ Simulate Flash Flood SOS
-          </Command.Item>
-          <Command.Item className={item} onSelect={go(() => { router.push("/dashboard"); reset(); })}>↺ Reset Crisis Demo</Command.Item>
+          </Command.Item>}
+          {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && role === "GOV_AGENCY" && <Command.Item className={item} onSelect={go(() => { router.push("/dashboard"); reset(); })}>↺ Reset Crisis Demo</Command.Item>}
           <Command.Item className={item} onSelect={go(() => openLogin(null))}>🔑 Switch operator credentials</Command.Item>
-          {OPERATORS.filter((o) => o.badgeId !== user?.badgeId).map((o) => (
+          {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && OPERATORS.filter((o) => o.badgeId !== user?.badgeId).map((o) => (
             <Command.Item key={o.badgeId} className={item} value={`switch role ${o.badgeId} ${ROLES[o.role].short}`} onSelect={go(async () => { if (await login(o.badgeId)) router.push("/dashboard"); })}>
               🔁 Switch to {ROLES[o.role].short}
               <span className="ml-auto font-mono text-xs text-slate-500">{o.badgeId}</span>
             </Command.Item>
           ))}
-          <Command.Item className={item} onSelect={go(() => setOffline(!offline))}>📡 Toggle Offline Field Mode</Command.Item>
-          <Command.Item className={item} onSelect={go(() => { router.push("/dashboard"); setMeshOpen(true); })}>⚡ Open Mesh Sync Drawer</Command.Item>
+          <Command.Item className={item} onSelect={go(() => setOffline(!offline))}>📡 Toggle Local-only Queue Mode</Command.Item>
+          <Command.Item className={item} onSelect={go(() => { router.push("/dashboard"); setMeshOpen(true); })}>⚡ Open Offline Queue</Command.Item>
         </Command.Group>
         <Command.Group heading="Camps" className={heading}>
           {data?.camps.map((c) => (

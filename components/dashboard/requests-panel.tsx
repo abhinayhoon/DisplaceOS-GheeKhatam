@@ -15,7 +15,7 @@ export default function RequestsPanel({ approvable = false }: { approvable?: boo
       <div data-lenis-prevent className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-xs">
           <thead className="text-[10px] uppercase tracking-wider text-slate-500">
-            <tr><th className="py-2">Camp</th><th>Type</th><th>Qty</th><th>Urgency</th><th>Confidence</th><th>Status</th><th /></tr>
+            <tr><th className="py-2">Camp</th><th>Type</th><th>Qty</th><th>Urgency heuristic</th><th>Input consistency</th><th>Status</th><th /></tr>
           </thead>
           <tbody>
             {data?.requests.map((r) => (
@@ -25,7 +25,7 @@ export default function RequestsPanel({ approvable = false }: { approvable?: boo
                 <td className="font-mono tabular-nums">{r.quantityNeeded}</td>
                 <td className="font-mono tabular-nums text-white">{r.urgencyScore}</td>
                 <td className="font-mono tabular-nums text-slate-300">🛡️ {requestConfidence(r, data.camps.find((c) => c.id === r.campId))}%</td>
-                <td><span style={{ color: STATUS_COLOR[r.status] }}>{r.status === "OFFLINE_QUEUED" ? "OFFLINE_QUEUED (Mesh Packet Ready)" : r.status}</span></td>
+                <td><span style={{ color: STATUS_COLOR[r.status] }}>{r.status === "OFFLINE_QUEUED" ? "LOCAL ONLY · NOT SYNCED" : r.status}</span></td>
                 <td className="space-x-1 whitespace-nowrap py-1 text-right">
                   {approvable && r.status === "PENDING" && (
                     <motion.button whileTap={{ scale: 0.98 }} type="button" disabled={busy} onClick={(e) => { e.stopPropagation(); if (can("APPROVE")) approve(r.id); else deny("APPROVE"); }}

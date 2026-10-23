@@ -40,8 +40,6 @@ function Pinned() {
   const p1 = useTransform(p, [0.02, 0.44], [0, 1]);
   const p2 = useTransform(p, [0.5, 0.95], [0, 1]);
   const cue = useTransform(p, [0.85, 0.97], [1, 0]);
-  const time = useTransform(p, [0.5, 0.95], [72, 0]);
-  const timeText = useTransform(time, (v) => (v < 1 ? "<1s" : `${Math.round(v)}h`));
   return (
     <section id="story" ref={ref} className="relative h-[300vh]">
       <div className="sticky top-0 flex h-screen flex-col justify-center px-6">
@@ -50,7 +48,7 @@ function Pinned() {
             <p className="mb-6 font-mono text-[11px] uppercase tracking-[0.3em] text-[#F59E0B]">Your response in two steps</p>
             <div className="relative h-[320px]">
               <motion.div style={{ opacity: s1, y: s1y }} className="absolute inset-0"><Numeral n="01" word="Define" body="Camps and rescue teams log what is needed, where, and how fast it runs out." /></motion.div>
-              <motion.div style={{ opacity: s2, y: s2y }} className="absolute inset-0"><Numeral n="02" word="Receive" body="Surplus is rerouted, convoys move, and shortage nodes flip from red to green." /></motion.div>
+              <motion.div style={{ opacity: s2, y: s2y }} className="absolute inset-0"><Numeral n="02" word="Receive" body="Operators review suggested transfers, record dispatch progress, and confirm deliveries before stock is credited." /></motion.div>
             </div>
           </div>
           <div className="relative h-[540px]">
@@ -59,7 +57,7 @@ function Pinned() {
           </div>
         </div>
         <div className="mx-auto mt-10 flex w-full max-w-6xl items-center justify-between border-t border-white/10 pt-5 text-sm">
-          <span className="text-slate-400">Response time <span className="ml-2 font-mono text-slate-500 line-through">72h</span> <span aria-hidden>→</span> <motion.span className="font-mono text-2xl font-bold tabular-nums text-[#F59E0B]">{timeText}</motion.span></span>
+          <span className="text-slate-400">Actual response time depends on field data, connectivity, and operator action.</span>
           <motion.span style={{ opacity: cue }} className="flex items-center gap-2 text-xs text-slate-500">
             Scroll to continue <motion.span aria-hidden animate={reduce ? undefined : { y: [0, 6, 0] }} transition={{ duration: 1.6, repeat: Infinity }}>↓</motion.span>
           </motion.span>
@@ -88,8 +86,8 @@ export default function TwoSteps() {
     <section id="story">
       <p className="px-4 pt-16 font-mono text-[11px] uppercase tracking-[0.3em] text-[#F59E0B]">Your response in two steps</p>
       <MobileStep n="01" word="Define" body="Camps and rescue teams log what is needed, where, and how fast it runs out." Panel={StepReportPanel} />
-      <MobileStep n="02" word="Receive" body="Surplus is rerouted, convoys move, and shortage nodes flip from red to green." Panel={StepRespondPanel} />
-      <p className="px-4 pb-8 text-sm text-slate-400">Response time <span className="font-mono line-through">72h</span> → <span className="font-mono text-xl font-bold text-[#F59E0B]">&lt;1s</span></p>
+      <MobileStep n="02" word="Receive" body="Operators review suggested transfers, record dispatch progress, and confirm deliveries before stock is credited." Panel={StepRespondPanel} />
+      <p className="px-4 pb-8 text-sm text-slate-400">Actual response time depends on field data, connectivity, and operator action.</p>
     </section>
   );
 }

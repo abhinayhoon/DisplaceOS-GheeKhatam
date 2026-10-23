@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model ReliefCamp {
@@ -24,6 +24,9 @@ model ReliefCamp {
   facilitiesJson   String   @default("{}")
   verificationJson String   @default("{}")
   updatedAt        DateTime @updatedAt
+  survivors        DisplacedPerson[]
+  requests         ResourceRequest[]
+  dispatches       RescueDispatch[]
 }
 
 model ResourceRequest {
@@ -38,6 +41,8 @@ model ResourceRequest {
   duplicateFlag  Boolean  @default(false)
   reasoningJson  String
   createdAt      DateTime @default(now())
+  camp           ReliefCamp @relation(fields: [campId], references: [id], onDelete: Restrict)
+  dispatches     RescueDispatch[]
 }
 
 model SupplyDepot {
@@ -64,6 +69,11 @@ model RescueDispatch {
   routeStatus    String // CLEAR | LANDSLIDE_DETOUR | DELIVERED
   progressPercent Int
   stockApplied   Boolean @default(false)
+  targetCamp     ReliefCamp @relation(fields: [targetCampId], references: [id], onDelete: Restrict)
+  requestId      String?
+  request        ResourceRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+
+  @@index([requestId])
 }
 
 model DisplacedPerson {
@@ -72,9 +82,11 @@ model DisplacedPerson {
   age             Int
   medicalNeeds    String
   currentCampName String
+  campId          String
   district        String
   familyGroupCode String
   status          String // SAFE_IN_CAMP | NEEDS_MEDEVAC | REUNITED
+  camp            ReliefCamp @relation(fields: [campId], references: [id], onDelete: Restrict)
 }
 
 model User {
@@ -82,6 +94,7 @@ model User {
   name          String
   email         String    @unique
   emailVerified Boolean   @default(false)
+  approved      Boolean   @default(false)
   image         String?
   role          String    @default("RELIEF_CAMP") // GOV_AGENCY | RELIEF_CAMP | RESCUE_TEAM
   campId        String?
@@ -135,6 +148,7 @@ model TriageWeights {
   burnDrift        Float    @default(1)
   facilityPenalty  Float    @default(0.25)
   historyJson      String   @default("[]")
+  verificationHead String   @default("GENESIS")
   updatedAt        DateTime @updatedAt
 }
 
@@ -159,4 +173,16 @@ model TelemetryEvent {
   kind      String
   message   String
   createdAt DateTime @default(now())
+}
+
+model ActionReceipt {
+  id           String   @id
+  actorBadgeId String
+  createdAt    DateTime @default(now())
+}
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
 }

@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { motion, useScroll, useTransform, type MotionValue } from "framer-motion";
 
 const CHALLENGE = "Relief is fragmented, duplicated, and blind across districts.".split(" ");
-const SOLUTION = "One source of truth that reroutes surplus to shortage in under a second.".split(" ");
+const SOLUTION = "A shared workflow for recording needs, stock, and dispatch outcomes.".split(" ");
 
 function Word({ word, p, a, b, bright }: { word: string; p: MotionValue<number>; a: number; b: number; bright: boolean }) {
   const opacity = useTransform(p, [a, b], [0.12, 1]);

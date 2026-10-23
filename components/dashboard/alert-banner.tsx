@@ -26,7 +26,7 @@ export default function AlertBanner() {
           </div>
           <motion.button whileTap={{ scale: 0.98 }} type="button" disabled={busy} onClick={() => (can("REBALANCE") ? rebalance() : deny("REBALANCE"))}
             className="rounded-lg bg-[#10B981] px-4 py-2 text-xs font-bold text-[#04120C] hover:bg-[#34d399] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
-            🧠 {can("REBALANCE") ? "" : "🔒 "}1-Tap Auto-Rebalance Surplus
+            🧠 {can("REBALANCE") ? "" : "🔒 "}Create Suggested Transfers
           </motion.button>
         </motion.section>
       )}

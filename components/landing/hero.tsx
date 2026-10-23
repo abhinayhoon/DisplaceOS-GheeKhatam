@@ -23,7 +23,7 @@ export default function Hero() {
           initial={reduce ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: EASE }}
           className="mb-8 font-mono text-[11px] uppercase tracking-[0.3em] text-[#F59E0B]"
         >
-          Fixed response time. Zero duplicate deliveries.
+          A shared workspace for relief coordination
         </motion.p>
         <h1 className="text-[clamp(2.75rem,10.5vw,9.5rem)] font-black leading-[0.92] tracking-tighter text-white">
           {WORDS.map((w, i) => (
@@ -42,7 +42,7 @@ export default function Hero() {
           initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: EASE, delay: 0.8 }}
           className="mx-auto mt-8 max-w-xl text-pretty text-base text-slate-400 sm:text-lg"
         >
-          DisplaceOS unifies camps, depots and rescue convoys across Uttarkashi, Chamoli, Rudraprayag and Tehri, so surplus finds shortage in the first 72 hours.
+          DisplaceOS is a prototype for recording camp needs, available stock, dispatches, and survivor records. Its current scenario uses sample data and has no connected field feeds.
         </motion.p>
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: EASE, delay: 0.95 }}

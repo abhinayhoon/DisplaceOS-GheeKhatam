@@ -6,8 +6,8 @@ import SpotlightCard from "./spotlight-card";
 const CHIPS = ["Food", "Water", "Medicine", "Shelter", "Rescue"];
 const CARDS = [
   ["Request triage & urgency scoring", "Occupancy × Deficit ÷ Survival Runway Hours ranks every SOS."],
-  ["Duplicate delivery detection", "Overlapping shipments are flagged before trucks roll."],
-  ["Cross-district visibility", "One live picture across all four districts."],
+  ["Overlapping request flags", "Open requests for the same camp and resource are flagged for operator review."],
+  ["Shared records", "Role-based views show the latest records stored by the server."],
 ];
 
 function Chip({ label, p, i }: { label: string; p: MotionValue<number>; i: number }) {

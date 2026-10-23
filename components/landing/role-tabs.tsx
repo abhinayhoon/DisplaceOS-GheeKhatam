@@ -12,19 +12,19 @@ import Reveal from "./reveal";
 const TABS: { key: string; label: string; bullets: string[]; preview: ReactNode }[] = [
   {
     key: "gov", label: "NDMA Command",
-    bullets: ["Approve and reroute cross-district allocations", "Supply-vs-demand and runway charts for every camp", "Global depot stock overview with one-click rebalance"],
+    bullets: ["Review requests and create transfer dispatch records", "Compare recorded supply with burn-rate estimates", "Review depot stock and suggested transfers"],
     preview: (
       <div className="space-y-3">
         <Row l="Camp Delta · Chamoli" r="Runway 0.0h" c="#EF4444" tag="CRITICAL" />
         <Row l="Camp Alpha · Uttarkashi" r="Food 5280 / 410 people" c="#F59E0B" tag="OVERFLOW" />
         <Row l="Camp Gamma · Rudraprayag" r="Medical kits 0" c="#EF4444" tag="CRITICAL" />
-        <div className="rounded-lg bg-[#10B981] py-2.5 text-center text-xs font-bold text-[#04120C]">🧠 1-Click Auto-Rebalance Surplus</div>
+        <div className="rounded-lg bg-[#10B981] py-2.5 text-center text-xs font-bold text-[#04120C]">🧠 Create Suggested Transfers</div>
       </div>
     ),
   },
   {
     key: "camp", label: "Camp Manager",
-    bullets: ["Submit SOS requests for food, water, medicine, shelter, evacuation", "Adjust live camp stock in one tap", "Register displaced persons with family group codes"],
+    bullets: ["Submit requests for food, water, medicine, shelter, and evacuation", "Record camp stock adjustments", "Register displaced persons with family group codes"],
     preview: (
       <div className="space-y-3">
         <div className="flex flex-wrap gap-2">{["FOOD", "WATER", "MEDICINE", "SHELTER", "EVACUATION"].map((c, i) => <span key={c} className={`rounded-full border px-3 py-1 text-[11px] ${i === 2 ? "border-[#F59E0B]/70 bg-[#F59E0B]/20 text-[#FBBF24]" : "border-white/10 text-slate-400"}`}>{c}</span>)}</div>
@@ -36,7 +36,7 @@ const TABS: { key: string; label: string; bullets: string[]; preview: ReactNode 
   },
   {
     key: "rescue", label: "Rescue Team",
-    bullets: ["Active dispatch missions with live ETA", "Toggle LANDSLIDE_DETOUR when roads close", "Mark DELIVERED to refill the camp inventory instantly"],
+    bullets: ["Review dispatch records and operator-entered ETAs", "Record a route change reported by the field", "Confirm delivery before receiving stock is credited"],
     preview: (
       <div className="space-y-3">
         <div className="flex items-center justify-between text-xs"><span className="font-mono font-semibold text-white">HELI-02</span><span className="text-[#10B981]">CLEAR</span></div>
@@ -63,7 +63,7 @@ export default function RoleTabs() {
   const inView = useInView(ref, { amount: 0.5 });
   const [i, setI] = useState(0);
   const [manual, setManual] = useState(false);
-  const { login } = useApp();
+  const { login, openLogin } = useApp();
   const router = useRouter();
   useEffect(() => {
     if (!inView || manual) return;
@@ -74,7 +74,7 @@ export default function RoleTabs() {
   return (
     <section id="roles" ref={ref} className="mx-auto max-w-6xl scroll-mt-20 px-4 py-32 sm:px-6">
       <Reveal>
-        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#F59E0B]">Three roles, one truth</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#F59E0B]">Three roles, shared records</p>
         <h2 className="mt-4 max-w-3xl text-[clamp(2rem,5vw,4rem)] font-bold leading-[1.05] tracking-tight text-white">The right controls for whoever is on the ground.</h2>
       </Reveal>
       <div role="tablist" aria-label="Stakeholder roles" className="mt-10 inline-flex flex-wrap gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 backdrop-blur-xl">
@@ -102,9 +102,15 @@ export default function RoleTabs() {
                 </motion.li>
               ))}
               <li>
-                <button type="button" onClick={async () => { if (await login(OPERATORS[i].badgeId)) router.push("/dashboard"); }}
+                <button type="button" onClick={async () => {
+                  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+                    if (await login(OPERATORS[i].badgeId)) router.push("/dashboard");
+                  } else {
+                    openLogin(((["GOV_AGENCY", "RELIEF_CAMP", "RESCUE_TEAM"] as const)[i]));
+                  }
+                }}
                   className="rounded-full bg-[#F59E0B] px-6 py-2.5 text-sm font-bold text-[#1a1100] transition hover:shadow-[0_0_24px_rgba(245,158,11,0.6)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
-                  Enter as {tab.label} →
+                  {process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? `Enter as ${tab.label}` : `Sign in as ${tab.label}`} →
                 </button>
               </li>
             </ul>

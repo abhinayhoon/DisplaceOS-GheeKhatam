@@ -1,29 +1,49 @@
 import { NextResponse } from "next/server";
-import { OPERATORS } from "@/lib/types";
-import { SESSION_COOKIE, checkCredentials, cookieOpts, getSessionUser, signSession } from "@/lib/auth";
+import { cookies } from "next/headers";
+import { AuthError, authenticate, cookieOpts, createSession, getSessionUser, revokeSession, SESSION_COOKIE } from "@/lib/auth";
 import { rateLimited } from "@/lib/rate-limit";
 
+function errorResponse(error: unknown) {
+  if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+  console.error("Authentication request failed", error);
+  return NextResponse.json({ error: "Authentication service unavailable" }, { status: 500 });
+}
+
 export async function GET() {
-  const user = await getSessionUser();
-  return NextResponse.json({ user, token: user ? signSession(user.badgeId) : null });
+  try {
+    const user = await getSessionUser();
+    return NextResponse.json({ user }, { headers: { "cache-control": "no-store" } });
+  } catch (error) {
+    return errorResponse(error);
+  }
 }
 
 export async function POST(req: Request) {
-  if (rateLimited(req, "auth", 30)) return NextResponse.json({ error: "Too many attempts" }, { status: 429 });
-  const b = await req.json().catch(() => null);
-  const badgeId = String(b?.badgeId ?? "");
-  // Judge 1-click login skips the passcode (demo deployments only).
-  const instant = b?.instant === true && process.env.DEMO_MODE !== "false";
-  const op = instant ? OPERATORS.find((o) => o.badgeId === badgeId) ?? null : checkCredentials(badgeId, String(b?.passcode ?? ""));
-  if (!op) return NextResponse.json({ error: "Invalid Badge ID or passcode" }, { status: 401 });
-  const token = signSession(op.badgeId);
-  const res = NextResponse.json({ user: { badgeId: op.badgeId, name: op.name, role: op.role, campName: op.campName }, token });
-  res.cookies.set(SESSION_COOKIE, token, cookieOpts);
-  return res;
+  try {
+    if (await rateLimited(req, "auth", 30)) return NextResponse.json({ error: "Too many attempts" }, { status: 429 });
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    const user = await authenticate(body);
+    if (!user) return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+    const token = await createSession(user);
+    const response = NextResponse.json({ user }, { headers: { "cache-control": "no-store" } });
+    response.cookies.set(SESSION_COOKIE, token, cookieOpts);
+    return response;
+  } catch (error) {
+    return errorResponse(error);
+  }
 }
 
 export async function DELETE() {
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE, "", { ...cookieOpts, maxAge: 0 });
-  return res;
+  const response = NextResponse.json({ ok: true }, { headers: { "cache-control": "no-store" } });
+  response.cookies.set(SESSION_COOKIE, "", { ...cookieOpts, maxAge: 0 });
+  try {
+    await revokeSession((await cookies()).get(SESSION_COOKIE)?.value);
+  } catch (error) {
+    console.error("Session revocation failed", error);
+    const failed = NextResponse.json({ error: "Could not revoke session" }, { status: 500, headers: { "cache-control": "no-store" } });
+    failed.cookies.set(SESSION_COOKIE, "", { ...cookieOpts, maxAge: 0 });
+    return failed;
+  }
+  return response;
 }

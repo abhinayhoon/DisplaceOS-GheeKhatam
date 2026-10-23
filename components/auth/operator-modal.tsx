@@ -4,31 +4,32 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/components/providers";
-import { OPERATORS, ROLES } from "@/lib/types";
+import { OPERATORS, ROLES, pill } from "@/lib/types";
 import { useOverlay } from "@/lib/use-scroll-lock";
 
-const input = "w-full rounded-lg border border-white/10 bg-[#030712] px-3 py-2 font-mono text-sm text-white outline-none focus:border-[#38BDF8]";
+const input = "w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/60 focus:bg-white/[0.07] focus:shadow-[0_0_0_4px_rgba(34,211,238,0.12)]";
+const ICON = { GOV_AGENCY: "🏛️", RELIEF_CAMP: "⛺", RESCUE_TEAM: "🚁" } as const;
+const NAME = { GOV_AGENCY: "NDMA Command", RELIEF_CAMP: "Relief Camp Manager", RESCUE_TEAM: "NDRF Field Unit" } as const;
+const DEMO_ENABLED = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 export default function OperatorModal() {
   const { loginOpen, closeLogin, login, user, requiredRole, sessionPending } = useApp();
   const router = useRouter();
   const path = usePathname();
-  const [badge, setBadge] = useState("");
-  const [pass, setPass] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
 
-  // Dashboard without a session shows a non-dismissable gate.
   const gated = path.startsWith("/dashboard") && !user && !sessionPending;
   const open = loginOpen || gated;
-
   useOverlay(open, gated ? undefined : closeLogin);
 
-  const go = async (b: string, p?: string) => {
+  const go = async (identifier: string, credential?: string) => {
     setPending(true);
-    const ok = await login(b, p);
+    const ok = await login(identifier, credential);
     setPending(false);
     if (ok) {
-      setPass("");
+      setPassword("");
       if (!path.startsWith("/dashboard")) router.push("/dashboard");
     }
   };
@@ -36,42 +37,42 @@ export default function OperatorModal() {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 1.04, filter: "blur(8px)" }} transition={{ duration: 0.35 }}
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-[#020408]/70 p-4 backdrop-blur-2xl"
           onClick={() => !gated && closeLogin()}>
-          <motion.div data-lenis-prevent role="dialog" aria-modal="true" aria-label="Tactical operator login" initial={{ opacity: 0, y: 24, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12 }}
-            transition={{ type: "spring", stiffness: 260, damping: 24 }} onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#0B1220]/95 p-6 shadow-2xl shadow-black/60 backdrop-blur-xl">
-            <p className="font-mono text-[10px] tracking-[0.25em] text-[#38BDF8]">TACTICAL OPERATOR LOGIN</p>
-            <h2 className="mt-1 text-xl font-bold text-white">{user ? "Switch Credentials" : "Authenticate to enter"}</h2>
-            {requiredRole && <p className="mt-2 rounded-lg border border-[#F59E0B]/30 bg-[#F59E0B]/10 px-3 py-2 text-xs text-[#F59E0B]">🔒 That action requires {ROLES[requiredRole].label}.</p>}
-            <ul className="mt-4 space-y-2">
-              {OPERATORS.map((o) => {
-                const active = user?.badgeId === o.badgeId, need = requiredRole === o.role;
-                return (
-                  <li key={o.badgeId}>
-                    <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} type="button" disabled={pending} onClick={() => go(o.badgeId)}
-                      className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#38BDF8] ${need ? "border-[#F59E0B]/60 bg-[#F59E0B]/10" : active ? "border-[#10B981]/50 bg-[#10B981]/10" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.07]"}`}>
-                      <span className="text-xl" aria-hidden>{o.role === "GOV_AGENCY" ? "🏛️" : o.role === "RELIEF_CAMP" ? "⛺" : "🚁"}</span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-mono text-sm font-semibold text-white">{o.badgeId}{active && <span className="ml-2 text-[10px] text-[#10B981]">ACTIVE</span>}</span>
-                        <span className="block text-xs text-slate-400">{ROLES[o.role].short} · {o.title}</span>
-                      </span>
-                      <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] text-slate-300">1-click</span>
+          <motion.div data-lenis-prevent role="dialog" aria-modal="true" aria-label="Operator sign in" initial={{ opacity: 0, y: 28, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -24, scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 240, damping: 26 }} onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-black/60 p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
+            <div aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
+            <div aria-hidden className="pointer-events-none absolute -top-24 left-1/2 size-56 -translate-x-1/2 rounded-full bg-cyan-400/10 blur-3xl" />
+            <div className="relative text-center">
+              <span className={pill}>Operator Access</span>
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight text-white">{user ? "Sign in as another operator" : "Sign in to DisplaceOS"}</h2>
+              <p className="mt-1 text-sm text-slate-400">Use your registered email and password.</p>
+            </div>
+            {requiredRole && <p className="relative mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-300">This action requires {ROLES[requiredRole].label}.</p>}
+            {DEMO_ENABLED && (
+              <ul className="relative mt-6 space-y-2">
+                {OPERATORS.map((operator) => {
+                  const active = user?.badgeId === operator.badgeId;
+                  return <li key={operator.badgeId}>
+                    <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} type="button" disabled={pending} onClick={() => go(operator.badgeId)}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left transition hover:border-cyan-400/30 hover:bg-white/[0.07] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
+                      <span className="text-xl" aria-hidden>{ICON[operator.role]}</span>
+                      <span className="min-w-0 flex-1"><span className="block text-sm font-medium text-white">{NAME[operator.role]}{active && <span className="ml-2 font-mono text-[10px] tracking-widest text-emerald-400">ACTIVE</span>}</span>
+                        <span className="block font-mono text-[11px] tracking-wider text-slate-500">Demo scenario</span></span>
+                      <span className="text-slate-500" aria-hidden>›</span>
                     </motion.button>
-                  </li>
-                );
-              })}
-            </ul>
-            <form className="mt-5 space-y-2 border-t border-white/10 pt-4" onSubmit={(e) => { e.preventDefault(); go(badge, pass); }}>
-              <p className="text-[10px] uppercase tracking-widest text-slate-500">Or enter credentials</p>
-              <div className="grid grid-cols-2 gap-2">
-                <input aria-label="Badge ID" placeholder="Badge ID" autoComplete="username" required value={badge} onChange={(e) => setBadge(e.target.value.toUpperCase())} className={input} />
-                <input aria-label="Passcode" placeholder="Passcode" type="password" autoComplete="current-password" required value={pass} onChange={(e) => setPass(e.target.value)} className={input} />
-              </div>
-              <p className="text-[10px] text-slate-500">Demo passcodes: NDMA-2026 · CAMP-2026 · NDRF-2026</p>
+                  </li>;
+                })}
+              </ul>
+            )}
+            <form className="relative mt-6 space-y-3 border-t border-white/10 pt-5" onSubmit={(event) => { event.preventDefault(); void go(email, password); }}>
+              <input aria-label="Email" type="email" placeholder="Email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} className={input} />
+              <input aria-label="Password" placeholder="Password" type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} className={input} />
               <div className="flex gap-2">
-                <motion.button whileTap={{ scale: 0.98 }} type="submit" disabled={pending} className="flex-1 rounded-lg bg-[#38BDF8] py-2 text-sm font-bold text-[#04121C] hover:bg-[#7dd3fc] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Authenticate</motion.button>
-                {!gated && <motion.button whileTap={{ scale: 0.98 }} type="button" onClick={closeLogin} className="rounded-lg border border-white/15 px-4 text-sm text-slate-300 hover:bg-white/10">Cancel</motion.button>}
+                <motion.button whileTap={{ scale: 0.98 }} type="submit" disabled={pending} className="flex-1 rounded-full bg-white py-2.5 text-sm font-semibold text-black transition hover:bg-slate-200 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">{pending ? "Signing in…" : "Continue"}</motion.button>
+                {!gated && <motion.button whileTap={{ scale: 0.98 }} type="button" onClick={closeLogin} className="rounded-full border border-white/15 px-5 text-sm text-slate-300 hover:bg-white/10">Cancel</motion.button>}
               </div>
             </form>
           </motion.div>

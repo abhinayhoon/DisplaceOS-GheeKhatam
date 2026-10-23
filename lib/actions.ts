@@ -1,15 +1,17 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { seedDemo } from "@/lib/demo-data";
-import { AuthError, type SessionUser } from "@/lib/auth";
-import { detectMismatch, runwayHours, type LiveState, type Role, type Weights } from "@/lib/types";
+import { AuthError, isDemoModeEnabled, type SessionUser } from "@/lib/auth";
+import { detectMismatch, foodReserve, runwayHours, type LiveState, type Role, type Weights } from "@/lib/types";
 import { accuracyOf, parseVerif, weightedUrgency } from "@/lib/accuracy";
 import { facilityDeficit, health, parseFacilities, type FacilityKey, FACILITY_KEYS } from "@/lib/facilities";
 
 type Tx = Prisma.TransactionClient;
 type Payload = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Handler = (tx: Tx, user: SessionUser, p: Payload) => Promise<unknown>;
+
+export class ActionError extends Error {}
 
 const GOV: Role = "GOV_AGENCY", CAMP: Role = "RELIEF_CAMP", RESCUE: Role = "RESCUE_TEAM";
 const CAMP_FIELD: Record<string, "foodPackets" | "waterLiters" | "medicalKits" | "shelterTents" | undefined> = {
@@ -18,10 +20,7 @@ const CAMP_FIELD: Record<string, "foodPackets" | "waterLiters" | "medicalKits" |
 const STOCK_FIELDS = ["foodPackets", "waterLiters", "medicalKits", "shelterTents"];
 const SURVIVOR_STATUS = ["NEEDS_MEDEVAC", "SAFE_IN_CAMP", "REUNITED"];
 const ROUTE = ["CLEAR", "LANDSLIDE_DETOUR", "PROGRESS_25", "DELIVERED"];
-let lastTick = 0;
-let tickN = 0;
 const REINFORCEMENTS = ["HELI_AIRLIFT_SQUAD", "MOBILE_ICU_TRAUMA_TEAM", "ARMY_ENGINEER_CORPS", "MOBILE_WASH_POWER_RIG"];
-const WEATHER = ["Radar: heavy rain cell over Chamoli, 40 min to Camp Delta", "Radar: Alaknanda river level +0.4 m, landslide risk HIGH", "Radar: cloud break over Uttarkashi, heli window open", "Radar: gusts 38 km/h Rudraprayag, rotor ops restricted"];
 
 function guard(user: SessionUser, ...roles: Role[]) {
   if (roles.length && !roles.includes(user.role)) throw new AuthError(403, `Requires role: ${roles.join(" or ")}`);
@@ -33,7 +32,7 @@ function audit(json: string, by: SessionUser, event: string) {
   const trail = Array.isArray(j.audit) ? j.audit : [];
   return JSON.stringify({ ...j, audit: [...trail, { at: new Date().toISOString(), by: user_tag(by), event }] });
 }
-const user_tag = (u: SessionUser) => `${u.badgeId} (${u.role})`;
+const user_tag = (u: SessionUser) => `${u.role}:${u.id}`;
 
 
 type Camp = Prisma.ReliefCampGetPayload<object>;
@@ -92,9 +91,11 @@ async function writeFacilities(tx: Tx, c: Camp, patch: (f: ReturnType<typeof par
 }
 
 async function audit_chain(tx: Tx, camp: Camp, source: string, truth: number, before: number, by: string) {
-  const prev = await tx.verificationLog.findFirst({ orderBy: { createdAt: "desc" } });
+  await readWeights(tx);
+  await tx.$queryRaw`SELECT "id" FROM "TriageWeights" WHERE "id" = 'global' FOR UPDATE`;
+  const chain = await tx.triageWeights.findUniqueOrThrow({ where: { id: "global" } });
   const acc = accuracyOf(camp as never);
-  const prevHash = prev?.hash ?? "GENESIS";
+  const prevHash = chain.verificationHead || "GENESIS";
   const stamp = new Date().toISOString();
   const hash = createHash("sha256").update(`${prevHash}|${camp.id}|${source}|${acc.reported}|${acc.modelExpected}|${truth}|${stamp}|${by}`).digest("hex");
   const v = parseVerif(camp);
@@ -105,44 +106,55 @@ async function audit_chain(tx: Tx, camp: Camp, source: string, truth: number, be
   const afterCamp = await tx.reliefCamp.findUniqueOrThrow({ where: { id: camp.id } });
   const after = accuracyOf(afterCamp as never).score;
   await tx.verificationLog.create({
-    data: { campId: camp.id, campName: camp.name, source, reported: acc.reported, modelExpected: acc.modelExpected, groundTruth: truth, accuracyBefore: before, accuracyAfter: after, hash, prevHash, by },
+    data: { campId: camp.id, campName: camp.name, source, reported: acc.reported, modelExpected: acc.modelExpected, groundTruth: truth, accuracyBefore: before, accuracyAfter: after, hash, prevHash, by, createdAt: new Date(stamp) },
   });
+  await tx.triageWeights.update({ where: { id: "global" }, data: { verificationHead: hash } });
   return { hash, after, camp: afterCamp };
 }
 
 async function ownCamp(tx: Tx, user: SessionUser) {
-  const camp = user.campName ? await tx.reliefCamp.findFirst({ where: { name: user.campName } }) : null;
+  const camp = user.campId
+    ? await tx.reliefCamp.findUnique({ where: { id: user.campId } })
+    : user.campName ? await tx.reliefCamp.findFirst({ where: { name: user.campName } }) : null;
   if (!camp) throw new AuthError(403, "No camp assigned");
   return camp;
 }
 
-export async function getState(db: Tx | typeof prisma = prisma): Promise<LiveState> {
+export async function getState(db: Tx | typeof prisma = prisma, viewer?: SessionUser): Promise<LiveState> {
+  const survivorWhere = viewer?.role === CAMP
+    ? { campId: viewer.campId ?? "__unassigned__" }
+    : viewer?.role === RESCUE ? { status: "NEEDS_MEDEVAC" } : undefined;
   const [camps, requests, depots, dispatches, survivors, events, w, vlogs] = await Promise.all([
     db.reliefCamp.findMany({ orderBy: { name: "asc" } }),
     db.resourceRequest.findMany({ orderBy: { urgencyScore: "desc" } }),
     db.supplyDepot.findMany({ orderBy: { name: "asc" } }),
     db.rescueDispatch.findMany({ orderBy: { unitCode: "asc" } }),
-    db.displacedPerson.findMany({ orderBy: { fullName: "asc" } }),
+    db.displacedPerson.findMany({ where: survivorWhere, orderBy: { fullName: "asc" } }),
     db.telemetryEvent.findMany({ orderBy: { createdAt: "desc" }, take: 60 }),
     db.triageWeights.findUnique({ where: { id: "global" } }),
     db.verificationLog.findMany({ orderBy: { createdAt: "desc" }, take: 12 }),
   ]);
   const acc = camps.map((c) => accuracyOf(c));
+  const visibleSurvivors = viewer?.role === CAMP
+    ? survivors.filter((person) => person.campId === viewer.campId)
+    : viewer?.role === RESCUE
+      ? survivors.filter((person) => person.status === "NEEDS_MEDEVAC")
+      : survivors;
   const metrics = {
     criticalCamps: camps.filter((c) => c.status === "CRITICAL" || runwayHours(c) < 12).length,
     pendingSOS: requests.filter((r) => r.status === "PENDING").length,
     activeConvoys: dispatches.filter((d) => d.routeStatus !== "DELIVERED").length,
-    registeredSurvivors: survivors.length,
+    registeredSurvivors: visibleSurvivors.length,
     activeDuplicates: requests.filter((r) => r.duplicateFlag && r.status !== "DELIVERED").length,
     minRunwayHours: +Math.min(...camps.map(runwayHours), 99).toFixed(1),
-    needsMedevac: survivors.filter((p) => p.status === "NEEDS_MEDEVAC").length,
+    needsMedevac: visibleSurvivors.filter((p) => p.status === "NEEDS_MEDEVAC").length,
     avgConfidence: Math.round(acc.reduce((a, x) => a + x.score, 0) / Math.max(acc.length, 1)),
     anomalies: acc.filter((x) => x.anomaly).length,
   };
   let history: Weights["history"] = [];
   try { history = JSON.parse(w?.historyJson ?? "[]"); } catch { /* empty */ }
   return {
-    camps, depots, survivors, metrics,
+    camps, depots, survivors: visibleSurvivors, metrics,
     requests: requests.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
     dispatches,
     events: events.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
@@ -157,58 +169,61 @@ const HANDLERS: Record<string, Handler> = {
   async REBALANCE_SURPLUS(tx, user) {
     guard(user, GOV);
     const before = await snap(tx);
-    const plan = detectMismatch(before.camps, before.depots);
+    const candidate = detectMismatch(before.camps, before.depots);
+    const inTransit = await tx.rescueDispatch.findMany({
+      where: { routeStatus: { not: "DELIVERED" }, resourceType: { in: ["FOOD", "MEDICINE"] } },
+      select: { targetCampId: true, resourceType: true },
+    });
+    const plan = {
+      food: candidate.food && !inTransit.some((d) => d.targetCampId === candidate.food?.to.id && d.resourceType === "FOOD") ? candidate.food : null,
+      medicine: candidate.medicine && !inTransit.some((d) => d.targetCampId === candidate.medicine?.to.id && d.resourceType === "MEDICINE") ? candidate.medicine : null,
+    };
     const moved = { food: 0, medicine: 0, convoys: [] as string[] };
-    const ids = Date.now() % 100000;
+    const ids = randomUUID().slice(0, 8).toUpperCase();
 
     if (plan.food) {
       const { from, to, qty } = plan.food;
-      await tx.reliefCamp.update({ where: { id: from.id }, data: { foodPackets: { decrement: qty }, status: "STABLE" } });
-      const after = to.foodPackets + qty;
-      await tx.reliefCamp.update({ where: { id: to.id }, data: { foodPackets: { increment: qty }, status: after / to.burnRatePerHour >= 12 ? "STABLE" : to.status } });
+      const reserve = foodReserve(from);
+      const debited = await tx.reliefCamp.updateMany({ where: { id: from.id, foodPackets: { gte: qty + reserve } }, data: { foodPackets: { decrement: qty } } });
+      if (debited.count !== 1) throw new ActionError("Surplus stock changed; refresh and retry rebalance");
+      const fromAfter = await tx.reliefCamp.findUniqueOrThrow({ where: { id: from.id } });
+      await tx.reliefCamp.update({ where: { id: from.id }, data: { status: fromAfter.currentOccupancy > fromAfter.capacity ? "OVERFLOW" : runwayHours(fromAfter) < 12 ? "CRITICAL" : "STABLE" } });
+      const request = await tx.resourceRequest.findFirst({
+        where: { campId: to.id, resourceType: "FOOD", status: "PENDING", duplicateFlag: false, quantityNeeded: { lte: qty } },
+        orderBy: { urgencyScore: "desc" },
+      });
       const d = await tx.rescueDispatch.create({
         data: {
           teamName: "Auto-Rebalance Convoy", unitCode: `RB-F-${ids}`, vehicleType: "HEAVY_TRUCK", originName: from.name,
           targetCampId: to.id, targetCampName: to.name, resourceType: "FOOD", quantity: qty, etaMinutes: 60,
-          routeStatus: "CLEAR", progressPercent: 10, stockApplied: true,
+          routeStatus: "CLEAR", progressPercent: 10, requestId: request?.id,
         },
       });
+      if (request) await tx.resourceRequest.update({ where: { id: request.id }, data: { status: "IN_TRANSIT", reasoningJson: audit(request.reasoningJson, user, `Transfer dispatched as ${d.unitCode}`) } });
       await shiftBaseline(tx, from.id, -qty);
-      await shiftBaseline(tx, to.id, qty);
       await addEvent(tx, "REBALANCE", `${qty} food ${from.name} → ${to.name} (${d.unitCode})`);
       moved.food = qty;
       moved.convoys.push(d.unitCode);
     }
     if (plan.medicine) {
       const { from, to, qty } = plan.medicine;
-      await tx.supplyDepot.update({ where: { id: from.id }, data: { medicineStock: { decrement: qty } } });
-      await tx.reliefCamp.update({ where: { id: to.id }, data: { medicalKits: { increment: qty }, status: "STABLE" } });
+      const debited = await tx.supplyDepot.updateMany({ where: { id: from.id, medicineStock: { gte: qty } }, data: { medicineStock: { decrement: qty } } });
+      if (debited.count !== 1) throw new ActionError("Depot stock changed; refresh and retry rebalance");
+      const request = await tx.resourceRequest.findFirst({
+        where: { campId: to.id, resourceType: "MEDICINE", status: "PENDING", duplicateFlag: false, quantityNeeded: { lte: qty } },
+        orderBy: { urgencyScore: "desc" },
+      });
       const d = await tx.rescueDispatch.create({
         data: {
           teamName: "Medical Airlift", unitCode: `RB-M-${ids}`, vehicleType: "HELI_AIRLIFT", originName: from.name,
           targetCampId: to.id, targetCampName: to.name, resourceType: "MEDICINE", quantity: qty, etaMinutes: 50,
-          routeStatus: "CLEAR", progressPercent: 10, stockApplied: true,
+          routeStatus: "CLEAR", progressPercent: 10, requestId: request?.id,
         },
       });
+      if (request) await tx.resourceRequest.update({ where: { id: request.id }, data: { status: "IN_TRANSIT", reasoningJson: audit(request.reasoningJson, user, `Transfer dispatched as ${d.unitCode}`) } });
       await addEvent(tx, "REBALANCE", `${qty} medical kits ${from.name} → ${to.name} (${d.unitCode})`);
       moved.medicine = qty;
       moved.convoys.push(d.unitCode);
-    }
-
-    // Resolve duplicates + flip matching requests to IN_TRANSIT with audit trail.
-    const open = await tx.resourceRequest.findMany({ where: { OR: [{ duplicateFlag: true }, { status: "PENDING" }] } });
-    for (const r of open) {
-      let status = r.status, flag = r.duplicateFlag, event = "";
-      if (r.duplicateFlag) {
-        flag = false;
-        if (r.status !== "DELIVERED") status = "RESOLVED";
-        event = "Duplicate shipment resolved by 1-Tap Rebalance";
-      } else if (plan.food && r.campId === plan.food.to.id && r.resourceType === "FOOD") {
-        status = "IN_TRANSIT"; event = `Fulfilled by surplus from ${plan.food.from.name}`;
-      } else if (plan.medicine && r.campId === plan.medicine.to.id && r.resourceType === "MEDICINE") {
-        status = "IN_TRANSIT"; event = `Fulfilled by ${plan.medicine.from.name} medical kits`;
-      } else continue;
-      await tx.resourceRequest.update({ where: { id: r.id }, data: { status, duplicateFlag: flag, reasoningJson: audit(r.reasoningJson, user, event) } });
     }
 
     const after = await snap(tx);
@@ -231,9 +246,10 @@ const HANDLERS: Record<string, Handler> = {
 
   async SIMULATE_FLASH_FLOOD_SOS(tx, user) {
     guard(user, GOV);
+    if (!isDemoModeEnabled()) throw new ActionError("Scenario simulation is disabled outside demo mode");
     const camps = await tx.reliefCamp.findMany();
     const target = camps.find((c) => c.name === "Camp Beta") ?? camps[0];
-    if (!target) throw new Error("No camps");
+    if (!target) throw new ActionError("No camps");
     const influx = 120, deficit = 600, runway = 3;
     const occupancy = target.currentOccupancy + influx;
     const score = Math.round((occupancy * deficit) / runway);
@@ -254,7 +270,7 @@ const HANDLERS: Record<string, Handler> = {
     });
     const dispatch = await tx.rescueDispatch.create({
       data: {
-        teamName: "NDRF Rapid Response", unitCode: `NDRF-${Date.now() % 1000}`, vehicleType: "NDRF_BOAT",
+        teamName: "NDRF Rapid Response", unitCode: `NDRF-${randomUUID().slice(0, 8).toUpperCase()}`, vehicleType: "NDRF_BOAT",
         originName: "Dehradun Central Depot", targetCampId: target.id, targetCampName: target.name,
         resourceType: "EVACUATION", quantity: influx, etaMinutes: 35, routeStatus: "LANDSLIDE_DETOUR", progressPercent: 5,
       },
@@ -262,8 +278,9 @@ const HANDLERS: Record<string, Handler> = {
     return { camp, request, dispatch };
   },
 
-  async RESET_DEMO(tx) {
-    // Demo utility: any signed-in operator may restore the seed crisis.
+  async RESET_DEMO(tx, user) {
+    guard(user, GOV);
+    if (!isDemoModeEnabled()) throw new ActionError("Demo reset is disabled");
     await seedDemo(tx);
     return { ok: true };
   },
@@ -272,9 +289,9 @@ const HANDLERS: Record<string, Handler> = {
     guard(user, CAMP);
     const camp = await ownCamp(tx, user);
     const type = String(p.resourceType);
-    if (!["FOOD", "WATER", "MEDICINE", "SHELTER", "EVACUATION"].includes(type)) throw new Error("Invalid resource type");
+    if (!["FOOD", "WATER", "MEDICINE", "SHELTER", "EVACUATION"].includes(type)) throw new ActionError("Invalid resource type");
     const qty = Number(p.quantityNeeded);
-    if (!Number.isInteger(qty) || qty < 1 || qty > 100000) throw new Error("Invalid quantity");
+    if (!Number.isInteger(qty) || qty < 1 || qty > 100000) throw new ActionError("Invalid quantity");
     const field = CAMP_FIELD[type];
     const stock = field ? camp[field] : 0;
     const deficit = Math.max(0, qty - stock);
@@ -303,68 +320,60 @@ const HANDLERS: Record<string, Handler> = {
 
   async APPROVE_REQUEST(tx, user, p) {
     guard(user, GOV);
-    const r = await tx.resourceRequest.findUnique({ where: { id: String(p.id) } });
-    if (!r) throw new Error("Request not found");
+    let r = await tx.resourceRequest.findUnique({ where: { id: String(p.id) } });
+    if (!r) throw new ActionError("Request not found");
     if (r.status !== "PENDING") return r;
+    const claimed = await tx.resourceRequest.updateMany({ where: { id: r.id, status: "PENDING" }, data: { status: "IN_TRANSIT" } });
+    if (claimed.count !== 1) return tx.resourceRequest.findUniqueOrThrow({ where: { id: r.id } });
+    r = { ...r, status: "IN_TRANSIT" };
     const depots = await tx.supplyDepot.findMany();
     const key = { FOOD: "foodStock", WATER: "waterStock", MEDICINE: "medicineStock", SHELTER: "shelterStock" } as const;
     const k = key[r.resourceType as keyof typeof key];
     const origin = k ? [...depots].sort((a, b) => b[k] - a[k])[0] : depots[0];
-    if (r.resourceType === "FACILITY_REPAIR") {
-      const key = JSON.parse(r.reasoningJson).facility as FacilityKey;
-      const camp = await tx.reliefCamp.findUnique({ where: { id: r.campId } });
-      if (camp && FACILITY_KEYS.includes(key)) {
-        await writeFacilities(tx, camp, (f) => {
-          if (key === "power") { f.power.pct = 95; f.power.backupHours = 36; }
-          if (key === "wash") { f.wash.contamination = "LOW"; f.wash.bioToilets += 6; }
-          if (key === "filtration") f.filtration.pct = 95;
-          if (key === "medical") { f.medical.coldChainPct = 90; f.medical.oxygenCylinders += 6; }
-          if (key === "comms") f.comms.signalPct = 90;
-          f.repairRequested = f.repairRequested.filter((x) => x !== key);
-        });
-        await relearnFacilities(tx, `REPAIR_APPROVED ${camp.name}/${key}`);
-      }
-    }
+    if (k && (!origin || origin[k] < r.quantityNeeded)) throw new ActionError("Insufficient depot stock for this request");
     if (origin && k) {
-      await tx.supplyDepot.update({ where: { id: origin.id }, data: { [k]: Math.max(0, origin[k] - r.quantityNeeded) } });
+      const debited = await tx.supplyDepot.updateMany({ where: { id: origin.id, [k]: { gte: r.quantityNeeded } }, data: { [k]: { decrement: r.quantityNeeded } } });
+      if (debited.count !== 1) throw new ActionError("Depot stock changed; refresh and retry approval");
     }
     await tx.rescueDispatch.create({
       data: {
-        teamName: "Gov Allocation Convoy", unitCode: `ALC-${Date.now() % 100000}`,
+        teamName: "Gov Allocation Convoy", unitCode: `ALC-${randomUUID().slice(0, 8).toUpperCase()}`,
         vehicleType: r.resourceType === "EVACUATION" ? "NDRF_BOAT" : "HEAVY_TRUCK",
         originName: origin?.name ?? "Dehradun Central Depot", targetCampId: r.campId, targetCampName: r.campName,
         resourceType: r.resourceType, quantity: r.quantityNeeded, etaMinutes: 90, routeStatus: "CLEAR", progressPercent: 0,
+        requestId: r.id,
       },
     });
     return tx.resourceRequest.update({
       where: { id: r.id },
-      data: { status: "IN_TRANSIT", reasoningJson: audit(r.reasoningJson, user, `Approved, dispatched from ${origin?.name}`) },
+      data: { reasoningJson: audit(r.reasoningJson, user, `Approved, dispatched from ${origin?.name}`) },
     });
   },
 
   async UPDATE_CAMP_STOCK(tx, user, p) {
     guard(user, CAMP);
     const camp = await ownCamp(tx, user);
-    if (p.campId && p.campId !== camp.id && !(await tx.reliefCamp.findFirst({ where: { id: p.campId, name: camp.name } }))) {
+    if (p.campId && p.campId !== camp.id) {
       throw new AuthError(403, "Not your camp");
     }
     const field = String(p.field), delta = Number(p.delta);
-    if (!STOCK_FIELDS.includes(field)) throw new Error("Invalid field");
-    if (!Number.isInteger(delta) || Math.abs(delta) > 10000) throw new Error("Invalid delta");
-    const cur = camp[field as (typeof STOCK_FIELDS)[number] & keyof typeof camp] as number;
-    const next = Math.max(0, cur + delta);
-    const upd = await tx.reliefCamp.update({ where: { id: camp.id }, data: { [field]: next } });
+    if (!STOCK_FIELDS.includes(field)) throw new ActionError("Invalid field");
+    if (!Number.isInteger(delta) || Math.abs(delta) > 10000) throw new ActionError("Invalid delta");
+    const where = delta < 0 ? { id: camp.id, [field]: { gte: -delta } } : { id: camp.id };
+    const changed = await tx.reliefCamp.updateMany({ where, data: { [field]: { increment: delta } } });
+    if (changed.count !== 1) throw new ActionError("Stock changed or is too low for that adjustment");
+    const upd = await tx.reliefCamp.findUniqueOrThrow({ where: { id: camp.id } });
     // Runway is derived from stock; refresh the status flag so map nodes and charts follow immediately.
-    const status = runwayHours(upd) < 3 ? "CRITICAL" : upd.status === "CRITICAL" && runwayHours(upd) >= 12 ? "STABLE" : upd.status;
+    const status = upd.currentOccupancy > upd.capacity ? "OVERFLOW" : runwayHours(upd) < 12 ? "CRITICAL" : "STABLE";
     return tx.reliefCamp.update({ where: { id: camp.id }, data: { status } });
   },
 
   async UPDATE_DISPATCH_STATUS(tx, user, p) {
     guard(user, RESCUE, GOV);
     const status = String(p.status);
-    if (!ROUTE.includes(status)) throw new Error("Invalid route status");
+    if (!ROUTE.includes(status)) throw new ActionError("Invalid route status");
     const d = await tx.rescueDispatch.findUnique({ where: { id: String(p.id) } });
-    if (!d) throw new Error("Dispatch not found");
+    if (!d) throw new ActionError("Dispatch not found");
     if (d.routeStatus === "DELIVERED") return d;
     if (status === "CLEAR" || status === "LANDSLIDE_DETOUR") {
       if (status !== d.routeStatus) {
@@ -379,59 +388,78 @@ const HANDLERS: Record<string, Handler> = {
       const etaMinutes = Math.round(d.etaMinutes * (1 - (progressPercent - d.progressPercent) / Math.max(100 - d.progressPercent, 1)));
       return tx.rescueDispatch.update({ where: { id: d.id }, data: { progressPercent, etaMinutes } });
     }
+    const deliveryClaim = await tx.rescueDispatch.updateMany({
+      where: { id: d.id, routeStatus: { not: "DELIVERED" } },
+      data: { routeStatus: "DELIVERED", progressPercent: 100, etaMinutes: 0, stockApplied: true },
+    });
+    if (deliveryClaim.count !== 1) return tx.rescueDispatch.findUniqueOrThrow({ where: { id: d.id } });
     const field = CAMP_FIELD[d.resourceType];
     if (field && !d.stockApplied) {
-      await tx.reliefCamp.update({ where: { id: d.targetCampId }, data: { [field]: { increment: d.quantity }, status: "STABLE" } });
+      await tx.reliefCamp.update({ where: { id: d.targetCampId }, data: { [field]: { increment: d.quantity } } });
+      const updated = await tx.reliefCamp.findUniqueOrThrow({ where: { id: d.targetCampId } });
+      const status = updated.currentOccupancy > updated.capacity ? "OVERFLOW" : runwayHours(updated) < 12 ? "CRITICAL" : "STABLE";
+      await tx.reliefCamp.update({ where: { id: d.targetCampId }, data: { status } });
       if (field === "foodPackets") await shiftBaseline(tx, d.targetCampId, d.quantity);
-    }
-    if (field === "foodPackets") {
-      // Physical audit on delivery: NDRF counts the food on the ground.
-      const tc = await tx.reliefCamp.findUnique({ where: { id: d.targetCampId } });
-      if (tc) await audit_chain(tx, tc, "FIELD_GROUND_TRUTH", tc.foodPackets, accuracyOf(tc as never).score, user_tag(user));
     }
     await addEvent(tx, "DELIVERY", `${d.unitCode} delivered ${d.quantity} ${d.resourceType} → ${d.targetCampName}`);
     await learn(tx, `DELIVERY_COMPLETE ${d.unitCode}`, (w) => ({ routeReliability: w.routeReliability + 0.03 }));
-    const reqs = await tx.resourceRequest.findMany({
-      where: { campId: d.targetCampId, resourceType: d.resourceType, status: { in: ["ALLOCATED", "IN_TRANSIT"] } },
-    });
-    for (const r of reqs) {
-      await tx.resourceRequest.update({ where: { id: r.id }, data: { status: "DELIVERED", reasoningJson: audit(r.reasoningJson, user, `Delivered by ${d.unitCode}`) } });
+    if (d.requestId) {
+      const request = await tx.resourceRequest.findUnique({ where: { id: d.requestId } });
+      if (request && request.status === "IN_TRANSIT") {
+        if (d.resourceType === "FACILITY_REPAIR") {
+          const key = JSON.parse(request.reasoningJson).facility as FacilityKey;
+          if (FACILITY_KEYS.includes(key)) {
+            const camp = await tx.reliefCamp.findUnique({ where: { id: d.targetCampId } });
+            if (camp) {
+              await writeFacilities(tx, camp, (f) => {
+                if (key === "power") { f.power.pct = 95; f.power.backupHours = 36; }
+                if (key === "wash") { f.wash.contamination = "LOW"; f.wash.bioToilets += 6; }
+                if (key === "filtration") f.filtration.pct = 95;
+                if (key === "medical") { f.medical.coldChainPct = 90; f.medical.oxygenCylinders += 6; }
+                if (key === "comms") f.comms.signalPct = 90;
+                f.repairRequested = f.repairRequested.filter((x) => x !== key);
+              });
+              await relearnFacilities(tx, `REPAIR_DELIVERED ${camp.name}/${key}`);
+            }
+          }
+        }
+        await tx.resourceRequest.update({ where: { id: request.id }, data: { status: "DELIVERED", reasoningJson: audit(request.reasoningJson, user, `Delivered by ${d.unitCode}`) } });
+      }
     }
-    return tx.rescueDispatch.update({ where: { id: d.id }, data: { routeStatus: "DELIVERED", progressPercent: 100, etaMinutes: 0, stockApplied: true } });
+    return tx.rescueDispatch.findUniqueOrThrow({ where: { id: d.id } });
   },
 
   async REGISTER_SURVIVOR(tx, user, p) {
     guard(user, CAMP);
     const camp = await ownCamp(tx, user);
     const fullName = String(p.fullName ?? "").trim(), age = Number(p.age);
-    if (!fullName || !Number.isInteger(age) || age < 0 || age > 120) throw new Error("Invalid survivor details");
+    if (!fullName || !Number.isInteger(age) || age < 0 || age > 120) throw new ActionError("Invalid survivor details");
     return tx.displacedPerson.create({
       data: {
-        fullName, age, medicalNeeds: String(p.medicalNeeds || "None"), currentCampName: camp.name, district: camp.district,
+        fullName, age, medicalNeeds: String(p.medicalNeeds || "None"), currentCampName: camp.name, campId: camp.id, district: camp.district,
         familyGroupCode: String(p.familyGroupCode || "FAM-NEW").toUpperCase(), status: "SAFE_IN_CAMP",
       },
     });
   },
 
   async UPDATE_SURVIVOR_STATUS(tx, user, p) {
-    guard(user, GOV, CAMP);
+    guard(user, GOV, CAMP, RESCUE);
     const status = String(p.status);
-    if (!SURVIVOR_STATUS.includes(status)) throw new Error("Invalid status");
+    if (!SURVIVOR_STATUS.includes(status)) throw new ActionError("Invalid status");
     const person = await tx.displacedPerson.findUnique({ where: { id: String(p.id) } });
-    if (!person) throw new Error("Survivor not found");
-    if (user.role === CAMP && person.currentCampName !== user.campName) throw new AuthError(403, "Not your camp");
+    if (!person) throw new ActionError("Survivor not found");
+    if (user.role === CAMP && person.campId !== user.campId) throw new AuthError(403, "Not your camp");
     return tx.displacedPerson.update({ where: { id: person.id }, data: { status } });
   },
 
   async VERIFY_GROUND_TRUTH(tx, user, p) {
     guard(user, RESCUE, GOV);
     const camp = await tx.reliefCamp.findUnique({ where: { id: String(p.campId) } });
-    if (!camp) throw new Error("Camp not found");
+    if (!camp) throw new ActionError("Camp not found");
     const before = accuracyOf(camp as never);
-    const measured = p.measured == null ? null : Number(p.measured);
-    if (measured != null && (!Number.isInteger(measured) || measured < 0)) throw new Error("Invalid measured count");
-    // Field audit: a physical count wins; otherwise a flagged anomaly is calibrated back to the burn-rate model.
-    const truth = measured ?? (before.anomaly ? before.modelExpected : camp.foodPackets);
+    const measured = Number(p.measured);
+    if (!Number.isSafeInteger(measured) || measured < 0 || measured > 10_000_000) throw new ActionError("Enter an observed whole-number food count");
+    const truth = measured;
     const r = await audit_chain(tx, camp, "FIELD_GROUND_TRUTH", truth, before.score, user_tag(user));
     const rw = runwayHours(r.camp);
     await tx.reliefCamp.update({ where: { id: camp.id }, data: { status: rw < 3 ? "CRITICAL" : r.camp.status === "CRITICAL" && rw >= 12 ? "STABLE" : r.camp.status } });
@@ -443,7 +471,7 @@ const HANDLERS: Record<string, Handler> = {
   async UPDATE_FACILITY_STATUS(tx, user, p) {
     guard(user, GOV, CAMP, RESCUE);
     const key = String(p.facility) as FacilityKey;
-    if (!FACILITY_KEYS.includes(key)) throw new Error("Invalid facility");
+    if (!FACILITY_KEYS.includes(key)) throw new ActionError("Invalid facility");
     const mode = String(p.mode ?? "REQUEST_REPAIR");
     let camp: Camp | null;
     if (user.role === CAMP) {
@@ -451,7 +479,7 @@ const HANDLERS: Record<string, Handler> = {
       if (p.campId && p.campId !== camp.id) throw new AuthError(403, "Not your camp");
     }
     else camp = await tx.reliefCamp.findUnique({ where: { id: String(p.campId) } });
-    if (!camp) throw new Error("Camp not found");
+    if (!camp) throw new ActionError("Camp not found");
 
     if (mode === "SET") {
       guard(user, GOV, RESCUE);
@@ -467,10 +495,10 @@ const HANDLERS: Record<string, Handler> = {
       await relearnFacilities(tx, `FACILITY_UPDATE ${camp.name}/${key}`);
       return upd;
     }
-    if (mode !== "REQUEST_REPAIR") throw new Error("Invalid mode");
+    if (mode !== "REQUEST_REPAIR") throw new ActionError("Invalid mode");
     guard(user, GOV, CAMP);
     const f = parseFacilities(camp);
-    if (f.repairRequested.includes(key)) throw new Error("Repair already requested for this facility");
+    if (f.repairRequested.includes(key)) throw new ActionError("Repair already requested for this facility");
     const hl = health(f)[key];
     const w = await readWeights(tx);
     const runway = key === "power" ? Math.max(0.5, f.power.backupHours) : Math.max(0.5, runwayHours(camp));
@@ -495,9 +523,10 @@ const HANDLERS: Record<string, Handler> = {
 
   async DEPLOY_REINFORCEMENT(tx, user, p) {
     guard(user, GOV);
+    if (!isDemoModeEnabled()) throw new ActionError("Synthetic reinforcement is disabled outside demo mode");
     const kind = String(p.kind);
-    if (!REINFORCEMENTS.includes(kind)) throw new Error("Unknown reinforcement unit");
-    const code = `REINF-${kind.split("_")[0]}-${Date.now() % 10000}`;
+    if (!REINFORCEMENTS.includes(kind)) throw new ActionError("Unknown reinforcement unit");
+    const code = `REINF-${kind.split("_")[0]}-${randomUUID().slice(0, 8).toUpperCase()}`;
     const origin = "Dehradun Central Depot";
     const spawn = (camp: Camp, vehicleType: string, teamName: string, eta: number) =>
       tx.rescueDispatch.create({
@@ -516,7 +545,7 @@ const HANDLERS: Record<string, Handler> = {
     };
     const needCamp = async () => {
       const c = await tx.reliefCamp.findUnique({ where: { id: String(p.campId) } });
-      if (!c) throw new Error("Select a target camp");
+      if (!c) throw new ActionError("Select a target camp");
       return c;
     };
 
@@ -524,7 +553,7 @@ const HANDLERS: Record<string, Handler> = {
       const d =
         (p.dispatchId ? await tx.rescueDispatch.findUnique({ where: { id: String(p.dispatchId) } }) : null) ??
         (p.campId ? await tx.rescueDispatch.findFirst({ where: { targetCampId: String(p.campId), routeStatus: "LANDSLIDE_DETOUR" } }) : null);
-      if (!d || d.routeStatus === "DELIVERED") throw new Error("No stalled convoy to bypass");
+      if (!d || d.routeStatus === "DELIVERED") throw new ActionError("No stalled convoy to bypass");
       const out = await tx.rescueDispatch.update({
         where: { id: d.id },
         data: { vehicleType: "HELI_AIRLIFT", teamName: `${d.teamName} + Heli Squad`, routeStatus: "CLEAR", etaMinutes: Math.round(d.etaMinutes * 0.3) },
@@ -538,7 +567,7 @@ const HANDLERS: Record<string, Handler> = {
       const stalled = await tx.rescueDispatch.findMany({
         where: p.dispatchId ? { id: String(p.dispatchId), routeStatus: "LANDSLIDE_DETOUR" } : { ...(camp ? { targetCampId: camp.id } : {}), routeStatus: "LANDSLIDE_DETOUR" },
       });
-      if (!stalled.length) throw new Error("No landslide-blocked route to clear");
+      if (!stalled.length) throw new ActionError("No landslide-blocked route to clear");
       for (const d of stalled) {
         await tx.rescueDispatch.update({ where: { id: d.id }, data: { routeStatus: "CLEAR", etaMinutes: Math.round(d.etaMinutes * 0.75) } });
       }
@@ -571,65 +600,27 @@ const HANDLERS: Record<string, Handler> = {
     return { kind, camp: camp.name };
   },
 
-  async TELEMETRY_TICK(tx, _user, p) {
-    const now = Date.now();
-    if (!p.force && now - lastTick < 1800) return { ticked: false };
-    lastTick = now;
-    tickN += 1;
-    const live = await tx.rescueDispatch.findMany({ where: { routeStatus: { not: "DELIVERED" } } });
-    for (const d of live) {
-      if (d.routeStatus !== "CLEAR" || d.progressPercent >= 95) continue;
-      const progressPercent = Math.min(95, d.progressPercent + 2);
-      await tx.rescueDispatch.update({ where: { id: d.id }, data: { progressPercent, etaMinutes: Math.max(0, d.etaMinutes - 1) } });
-      if (Math.floor(progressPercent / 25) > Math.floor(d.progressPercent / 25)) {
-        await addEvent(tx, "CONVOY", `${d.unitCode} GPS ping · ${progressPercent}% → ${d.targetCampName}`);
-      }
-    }
-    const camps = await tx.reliefCamp.findMany({ orderBy: { name: "asc" } });
-    const c = camps[tickN % Math.max(camps.length, 1)];
-    if (c) await addEvent(tx, "BURN_RATE", `${c.name} burn ${c.burnRatePerHour}/h · food runway ${runwayHours(c).toFixed(1)}h`);
-    if (tickN % 4 === 0) {
-      const worst = camps.map((x) => ({ x, h: health(parseFacilities(x)) })).flatMap(({ x, h }) => FACILITY_KEYS.map((k) => ({ x, k, v: h[k] }))).sort((a, b) => a.v - b.v)[0];
-      if (worst && worst.v < 40) await addEvent(tx, "FACILITY", `ALERT ${worst.x.name} ${worst.k} health ${worst.v}%`);
-    }
-    if (tickN % 6 === 0) await addEvent(tx, "WEATHER", WEATHER[Math.floor(tickN / 6) % WEATHER.length]);
-    if (tickN % 25 === 0) {
-      const cut = await tx.telemetryEvent.findMany({ orderBy: { createdAt: "desc" }, skip: 150, take: 1 });
-      if (cut[0]) await tx.telemetryEvent.deleteMany({ where: { createdAt: { lte: cut[0].createdAt } } });
-    }
-    return { ticked: true };
-  },
-
-  async SYNC_OFFLINE_QUEUE(tx, user, p) {
-    const items = Array.isArray(p.actions) ? (p.actions as { action: string; payload?: Payload }[]) : [];
-    const results: { action: string; ok: boolean; error?: string }[] = [];
-    for (const it of items.slice(0, 200)) {
-      const h = HANDLERS[it.action];
-      if (!h || it.action === "SYNC_OFFLINE_QUEUE" || it.action === "RESET_DEMO") {
-        results.push({ action: it.action, ok: false, error: "Not syncable" });
-        continue;
-      }
-      try {
-        await h(tx, user, it.payload ?? {});
-        results.push({ action: it.action, ok: true });
-      } catch (e) {
-        results.push({ action: it.action, ok: false, error: e instanceof Error ? e.message : "failed" });
-      }
-    }
-    return { applied: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length, results };
-  },
 };
 
 export const ACTIONS = Object.keys(HANDLERS);
 
 /** Runs one action in a single atomic transaction and returns the fresh full state. */
-export async function runAction(user: SessionUser, action: string, payload: Payload = {}) {
+export async function runAction(user: SessionUser, action: string, payload: Payload = {}, packetId?: string) {
   const h = HANDLERS[action];
-  if (!h) throw new Error("unknown action");
+  if (!h) throw new ActionError("Unknown action");
   return prisma.$transaction(
     async (tx) => {
+      if (packetId) {
+        if (!/^[A-Za-z0-9_-]{1,100}$/.test(packetId)) throw new ActionError("Invalid packet ID");
+        const prior = await tx.actionReceipt.findUnique({ where: { id: packetId } });
+        if (prior) {
+          if (prior.actorBadgeId !== user.badgeId) throw new AuthError(403, "Packet belongs to another operator");
+          return { result: { replayed: true }, state: await getState(tx, user) };
+        }
+      }
       const result = await h(tx, user, payload ?? {});
-      return { result, state: await getState(tx) };
+      if (packetId) await tx.actionReceipt.create({ data: { id: packetId, actorBadgeId: user.badgeId } });
+      return { result, state: await getState(tx, user) };
     },
     { timeout: 30000, maxWait: 10000 },
   );

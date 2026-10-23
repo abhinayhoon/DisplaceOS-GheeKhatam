@@ -24,7 +24,7 @@ export default function TriageDrawer() {
             className="fixed inset-y-0 right-0 z-[70] w-[min(94vw,460px)] overflow-y-auto border-l border-white/10 bg-[#0F1624] p-6">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-[#38BDF8]">Triage algorithm</p>
+                <p className="text-[10px] uppercase tracking-widest text-[#38BDF8]">Request scoring heuristic · not a clinical triage protocol</p>
                 <h2 className="text-lg font-semibold text-white">{r.campName} · {r.resourceType}</h2>
               </div>
               <motion.button whileTap={{ scale: 0.98 }} type="button" autoFocus aria-label="Close" onClick={() => setTriageId(null)} className="rounded p-1 text-slate-400 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#38BDF8]">✕</motion.button>
@@ -37,7 +37,7 @@ export default function TriageDrawer() {
             </div>
             {w && (
               <div className="mt-4 rounded-xl border border-[#A855F7]/30 bg-[#A855F7]/10 p-4">
-                <p className="text-[10px] uppercase tracking-widest text-[#A855F7]">Reinforcement Learning Weight Calibration</p>
+                <p className="text-[10px] uppercase tracking-widest text-[#A855F7]">Heuristic weight adjustment · not machine learning</p>
                 <p className="mt-1 font-mono text-[11px] text-slate-400">score = base × drift × (1 + penalty × facilityDeficit) ÷ routeReliability</p>
                 <dl className="mt-3 space-y-2 text-xs">
                   {([["Route Reliability Weight", w.routeReliability, 0.5, 1.5], ["Burn-Rate Drift Multiplier", w.burnDrift, 1, 1.5], ["Facility Deficit Penalty", w.facilityPenalty, 0.1, 0.6]] as const).map(([l, v, lo, hi]) => (
@@ -55,7 +55,7 @@ export default function TriageDrawer() {
               </div>
             )}
             <div className={`mt-4 rounded-xl border p-4 text-sm ${r.duplicateFlag ? "border-[#F59E0B]/40 bg-[#F59E0B]/10 text-[#F59E0B]" : "border-[#10B981]/30 bg-[#10B981]/10 text-[#10B981]"}`}>
-              {r.duplicateFlag ? "⚠ Duplicate check: FLAGGED — overlaps an active or delivered request" : "✓ Duplicate check: CLEAR — unique request"}
+              {r.duplicateFlag ? "⚠ Potential duplicate — a matching open request was found when this request was created" : "No matching open request was found when this request was created"}
             </div>
             <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
               <div><dt className="text-slate-500">Status</dt><dd className="text-white">{r.status}</dd></div>
@@ -64,7 +64,7 @@ export default function TriageDrawer() {
               <div><dt className="text-slate-500">Created</dt><dd className="text-white">{new Date(r.createdAt).toLocaleString()}</dd></div>
             </dl>
             <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-widest text-slate-500">Reasoning audit trail</h3>
-            <pre className="overflow-x-auto rounded-xl bg-[#030712] p-4 font-mono text-xs text-[#38BDF8]">{JSON.stringify(j, null, 2)}</pre>
+            <pre className="overflow-x-auto rounded-xl bg-[#020408] p-4 font-mono text-xs text-[#38BDF8]">{JSON.stringify(j, null, 2)}</pre>
           </motion.aside>
         </>
       )}

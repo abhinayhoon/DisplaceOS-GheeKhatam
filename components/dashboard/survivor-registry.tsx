@@ -20,7 +20,7 @@ export default function SurvivorRegistry() {
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <h2 className="text-sm font-semibold text-white">Survivor Finder & Family Reunification</h2>
         <input type="search" aria-label="Search survivors" placeholder="Search name, family code, status…" value={survivorQuery} onChange={(e) => setSurvivorQuery(e.target.value)}
-          className="ml-auto w-full max-w-xs rounded-lg border border-white/10 bg-[#030712] px-3 py-2 text-sm text-white outline-none focus:border-[#38BDF8]" />
+          className="ml-auto w-full max-w-xs rounded-lg border border-white/10 bg-[#020408] px-3 py-2 text-sm text-white outline-none focus:border-[#38BDF8]" />
         <div className="flex gap-1">
           {["ALL", ...STATUSES].map((s) => (
             <motion.button whileTap={{ scale: 0.98 }} key={s} type="button" aria-pressed={filter === s} onClick={() => setFilter(s)}
@@ -34,7 +34,7 @@ export default function SurvivorRegistry() {
           <tbody>
             {rows.map((p) => (
               <tr key={p.id} className="border-t border-white/5">
-                <td className="py-2 text-slate-200">{p.fullName}{p.offline && <span className="ml-1 rounded bg-[#F59E0B]/20 px-1 text-[9px] text-[#F59E0B]">OFFLINE_QUEUED (Mesh Packet Ready)</span>}</td>
+                <td className="py-2 text-slate-200">{p.fullName}{p.offline && <span className="ml-1 rounded bg-[#F59E0B]/20 px-1 text-[9px] text-[#F59E0B]">LOCAL ONLY · NOT SYNCED</span>}</td>
                 <td className="tabular-nums">{p.age}</td>
                 <td className="font-mono">{p.familyGroupCode}</td>
                 <td>{p.currentCampName}<span className="block text-[10px] text-slate-500">{p.district}</span></td>
@@ -42,7 +42,7 @@ export default function SurvivorRegistry() {
                 <td>
                   <select aria-label={`Status for ${p.fullName}`} value={p.status} disabled={busy || !can("TRIAGE_STATUS")}
                     onChange={(e) => setSurvivorStatus(p.id, e.target.value, p.fullName)}
-                    className="rounded border border-white/10 bg-[#030712] px-2 py-1 text-xs" style={{ color: COLOR[p.status] }}>
+                    className="rounded border border-white/10 bg-[#020408] px-2 py-1 text-xs" style={{ color: COLOR[p.status] }}>
                     {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                   <button type="button" aria-label={`Cycle status for ${p.fullName}`} disabled={busy || !can("TRIAGE_STATUS")}

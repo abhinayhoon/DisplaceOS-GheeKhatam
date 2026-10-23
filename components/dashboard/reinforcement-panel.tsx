@@ -25,7 +25,7 @@ export default function ReinforcementPanel() {
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <h2 className="text-sm font-semibold text-white">🚨 Dispatch Emergency Reinforcements</h2>
         <label className="ml-auto flex items-center gap-2 text-xs text-slate-400">Target camp
-          <select value={campId} onChange={(e) => setSel(e.target.value)} className="rounded-lg border border-white/10 bg-[#030712] px-2 py-1.5 text-xs text-white">
+          <select value={campId} onChange={(e) => setSel(e.target.value)} className="rounded-lg border border-white/10 bg-[#020408] px-2 py-1.5 text-xs text-white">
             {crit.map((c) => <option key={c.id} value={c.id}>{c.name} · {runwayHours(c).toFixed(1)}h {campTone(c) === "CRITICAL" ? "⚠" : ""}</option>)}
           </select>
         </label>

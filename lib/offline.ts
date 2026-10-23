@@ -2,25 +2,25 @@ import type { LiveState, OperatorUser, Person, Req } from "@/lib/types";
 
 export const OUTBOX_KEY = "displaceos_offline_outbox";
 export const MODE_KEY = "displaceos_offline_mode";
+const MAX_OUTBOX_PACKETS = 500;
 
 export type Packet = {
   id: string; action: string; payload: Record<string, unknown>; queuedAt: string; bytes: number; badgeId: string;
 };
 
-/** Actions field units may perform with the cloud severed; command actions need the uplink. */
+/** Actions that may be held in this browser's local queue while the server is unreachable. */
 export const QUEUEABLE = new Set([
   "CREATE_REQUEST", "REGISTER_SURVIVOR", "UPDATE_CAMP_STOCK", "UPDATE_SURVIVOR_STATUS", "UPDATE_DISPATCH_STATUS",
 ]);
 
-/** Mesh hop chosen by payload size: VHF carries tiny frames, LoRa mid-size, local LAN anything else. */
-export function hopFor(bytes: number): "VHF" | "LoRa" | "Local-LAN" {
-  return bytes <= 128 ? "VHF" : bytes <= 255 ? "LoRa" : "Local-LAN";
-}
-
 export function makePacket(action: string, payload: Record<string, unknown>, u: OperatorUser): Packet {
   const body = JSON.stringify({ action, payload });
+  const random = new Uint8Array(16);
+  if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(random);
+  else for (let i = 0; i < random.length; i += 1) random[i] = Math.floor(Math.random() * 256);
+  const id = Array.from(random, (byte) => byte.toString(16).padStart(2, "0")).join("");
   return {
-    id: `pkt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    id: `pkt-${id}`,
     action, payload, queuedAt: new Date().toISOString(), bytes: new TextEncoder().encode(body).length, badgeId: u.badgeId,
   };
 }
@@ -28,13 +28,27 @@ export function makePacket(action: string, payload: Record<string, unknown>, u: 
 export function readOutbox(): Packet[] {
   try {
     const v = JSON.parse(localStorage.getItem(OUTBOX_KEY) ?? "[]");
-    return Array.isArray(v) ? v : [];
+    if (!Array.isArray(v)) return [];
+    return v.filter((packet): packet is Packet =>
+      packet && typeof packet === "object"
+      && typeof packet.id === "string" && packet.id.length <= 100
+      && typeof packet.action === "string" && QUEUEABLE.has(packet.action)
+      && packet.payload && typeof packet.payload === "object" && !Array.isArray(packet.payload)
+      && typeof packet.queuedAt === "string" && typeof packet.bytes === "number"
+      && typeof packet.badgeId === "string",
+    ).slice(0, MAX_OUTBOX_PACKETS);
   } catch {
     return [];
   }
 }
 export function writeOutbox(p: Packet[]) {
-  try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(p)); } catch { /* storage blocked */ }
+  if (p.length > MAX_OUTBOX_PACKETS) return false;
+  try {
+    localStorage.setItem(OUTBOX_KEY, JSON.stringify(p));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Optimistic local projection of a queued packet so the UI updates before sync. */
@@ -53,7 +67,7 @@ export function applyLocal(s: LiveState, pk: Packet, u: OperatorUser): LiveState
         id: pk.id, campId: camp.id, campName: camp.name, district: camp.district, resourceType: type, quantityNeeded: qty,
         urgencyScore: Math.round((camp.currentOccupancy * deficit) / Math.max(runway, 0.5)), status: "OFFLINE_QUEUED",
         duplicateFlag: false, createdAt: pk.queuedAt,
-        reasoningJson: JSON.stringify({ occupancy: camp.currentOccupancy, deficit, runwayHours: +runway.toFixed(2), formula: "(occupancy x deficit) / runwayHours", note: "Queued offline - mesh packet ready" }),
+        reasoningJson: JSON.stringify({ occupancy: camp.currentOccupancy, deficit, runwayHours: +runway.toFixed(2), formula: "(occupancy x deficit) / runwayHours", note: "Saved locally; not yet committed to the server" }),
       };
       return { ...s, requests: [r, ...s.requests] };
     }

@@ -10,7 +10,7 @@ const TYPES = ["FOOD", "WATER", "MEDICINE", "SHELTER", "EVACUATION"];
 const FIELDS = [
   ["foodPackets", "Food packets", 100], ["waterLiters", "Water (L)", 500], ["medicalKits", "Medical kits", 10], ["shelterTents", "Shelter tents", 10],
 ] as const;
-const input = "w-full rounded-lg border border-white/10 bg-[#030712] px-3 py-2 text-sm text-white outline-none focus:border-[#38BDF8]";
+const input = "w-full rounded-lg border border-white/10 bg-[#020408] px-3 py-2 text-sm text-white outline-none focus:border-[#38BDF8]";
 
 export default function CampView() {
   const { data, user, createRequest, registerSurvivor, adjustStock, busy, offline } = useApp();
@@ -18,12 +18,12 @@ export default function CampView() {
   const [qty, setQty] = useState("500");
   const [p, setP] = useState({ fullName: "", age: "30", medicalNeeds: "", familyGroupCode: "" });
   if (!data) return null;
-  const camp = data.camps.find((c) => c.name === user?.campName) ?? data.camps[0];
-  if (!camp) return null;
+  const camp = data.camps.find((c) => c.name === user?.campName);
+  if (!camp) return <p role="alert" className="rounded-xl border border-amber-400/30 bg-amber-400/5 p-4 text-sm text-amber-100">Your assigned camp is unavailable. Ask an administrator to check your camp assignment.</p>;
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-slate-400">Managing <b className="text-white">{camp.name}</b> · {camp.district}{offline && <span className="ml-2 rounded bg-[#F59E0B]/15 px-1.5 py-0.5 text-[10px] text-[#F59E0B]">OFFLINE FIELD MODE · writes queue as mesh packets</span>}</p>
+      <p className="text-xs text-slate-400">Managing <b className="text-white">{camp.name}</b> · {camp.district}{offline && <span className="ml-2 rounded bg-[#F59E0B]/15 px-1.5 py-0.5 text-[10px] text-[#F59E0B]">LOCAL-ONLY · actions saved on this device</span>}</p>
       <div className="grid gap-4 lg:grid-cols-3">
         <form className={`${card} space-y-3 p-4`} onSubmit={async (e) => { e.preventDefault(); const ok = await createRequest({ resourceType: type, quantityNeeded: Math.max(1, Number(qty) || 1) }); if (ok) { setType("FOOD"); setQty("500"); } }}>
           <h2 className="text-sm font-semibold text-white">🆘 Submit SOS Resource Request</h2>
@@ -37,7 +37,7 @@ export default function CampView() {
         </form>
 
         <section className={`${card} p-4`}>
-          <h2 className="mb-3 text-sm font-semibold text-white">Live stock · {camp.name}</h2>
+          <h2 className="mb-3 text-sm font-semibold text-white">Recorded stock · {camp.name}</h2>
           <p className="-mt-2 mb-3 text-xs text-slate-400">Food runway {runwayHours(camp).toFixed(1)}h · burn {camp.burnRatePerHour}/h</p>
           <ul className="space-y-2">
             {FIELDS.map(([f, l, step]) => (

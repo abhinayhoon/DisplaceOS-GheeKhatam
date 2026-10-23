@@ -11,7 +11,7 @@ export default function Navbar() {
   const { role, user, can, rebalance, flood, reset, busy, setPaletteOpen, openLogin, logout, offline, outbox, setMeshOpen, deny, live, setLive } = useApp();
   const lock = (p: Parameters<typeof can>[0], label: string) => (can(p) ? label : `🔒 ${label}`);
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#030712]/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#020408]/80 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-3 px-4 py-3">
         <Link href="/" className="mr-2 text-base font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#38BDF8]">
           Displace<span className="text-[#EF4444]">OS</span>
@@ -30,19 +30,19 @@ export default function Navbar() {
           <motion.button whileTap={{ scale: 0.98 }} type="button" role="switch" aria-checked={live} onClick={() => setLive(!live)}
             className={`${btn} flex items-center gap-2 border ${live ? "border-[#10B981]/40 bg-[#10B981]/10 text-[#10B981]" : "border-white/10 text-slate-400"}`}>
             <span className="relative flex size-2"><span className={`absolute inline-flex size-full rounded-full ${live ? "animate-ping bg-[#10B981] opacity-75" : ""}`} /><span className={`relative inline-flex size-2 rounded-full ${live ? "bg-[#10B981]" : "bg-slate-600"}`} /></span>
-            {live ? "🟢 LIVE TELEMETRY STREAM (Real-Time Sync)" : "Live stream paused"}
+            {live ? "🟢 SERVER REFRESH · 3s" : "Server refresh paused"}
           </motion.button>
           <motion.button whileTap={{ scale: 0.98 }} type="button" onClick={() => setMeshOpen(true)}
             className={`${btn} border ${offline ? "border-[#F59E0B]/50 bg-[#F59E0B]/10 text-[#F59E0B]" : "border-white/10 text-slate-300 hover:text-white"}`}>
-            📡 {offline ? "OFFLINE FIELD MODE" : "Offline Mesh"}{outbox.length > 0 && <span className="ml-1.5 rounded-full bg-[#F59E0B] px-1.5 text-[10px] text-black">{outbox.length}</span>}
+            📡 {offline ? "LOCAL-ONLY MODE" : "OFFLINE QUEUE"}{outbox.length > 0 && <span className="ml-1.5 rounded-full bg-[#F59E0B] px-1.5 text-[10px] text-black">{outbox.length}</span>}
           </motion.button>
           <motion.button whileTap={{ scale: 0.98 }} type="button" disabled={busy} onClick={() => (can("REBALANCE") ? rebalance() : deny("REBALANCE"))} className={`${btn} bg-[#10B981] text-[#04120C] hover:bg-[#34d399]`}>
-            🧠 {lock("REBALANCE", "1-Tap Auto-Rebalance Surplus")}
+            🧠 {lock("REBALANCE", "Create Suggested Transfers")}
           </motion.button>
-          <motion.button whileTap={{ scale: 0.98 }} type="button" disabled={busy} onClick={() => (can("SIMULATE") ? flood() : deny("SIMULATE"))} className={`${btn} bg-[#EF4444] text-white hover:bg-[#dc2626]`}>
+          {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && <motion.button whileTap={{ scale: 0.98 }} type="button" disabled={busy} onClick={() => (can("SIMULATE") ? flood() : deny("SIMULATE"))} className={`${btn} bg-[#EF4444] text-white hover:bg-[#dc2626]`}>
             ⚡ {lock("SIMULATE", "Simulate Flash Flood SOS")}
-          </motion.button>
-          <motion.button whileTap={{ scale: 0.98 }} type="button" disabled={busy} onClick={reset} className={`${btn} border border-white/10 font-medium text-slate-300 hover:bg-white/10`}>↺ Reset Crisis Demo</motion.button>
+          </motion.button>}
+          {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && role === "GOV_AGENCY" && <motion.button whileTap={{ scale: 0.98 }} type="button" disabled={busy} onClick={reset} className={`${btn} border border-white/10 font-medium text-slate-300 hover:bg-white/10`}>↺ Reset Crisis Demo</motion.button>}
           <motion.button whileTap={{ scale: 0.98 }} type="button" onClick={logout} className={`${btn} border border-white/15 font-medium text-slate-200 hover:bg-white/10`}>Log out</motion.button>
         </div>
       </div>

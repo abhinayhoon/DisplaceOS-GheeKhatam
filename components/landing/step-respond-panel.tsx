@@ -28,13 +28,13 @@ function Node({ p, x, y, label, flip }: { p: MotionValue<number>; x: number; y: 
       <motion.g style={{ opacity: pulse }}>
         <motion.circle cx={x} cy={y} fill="#EF4444" initial={{ r: 8, opacity: 0.5 }} animate={{ r: 24, opacity: 0 }} transition={{ duration: 1.6, repeat: Infinity }} />
       </motion.g>
-      <motion.circle cx={x} cy={y} r={9} style={{ fill }} stroke="#030712" strokeWidth={2.5} />
+      <motion.circle cx={x} cy={y} r={9} style={{ fill }} stroke="#020408" strokeWidth={2.5} />
       <text x={x} y={y - 16} textAnchor="middle" fontSize="11" fontWeight="600" fill="#e2e8f0">{label}</text>
     </g>
   );
 }
 
-const CAPS = ["Command your fleet with one-click rebalance", "Monitor live camp runway", "Access survivor and reunification registry"];
+const CAPS = ["Propose resource transfers and track dispatch records", "Review recorded stock and burn-rate estimates", "Record survivor and family-group details"];
 
 function Cap({ text, p, i }: { text: string; p: MotionValue<number>; i: number }) {
   const a = 0.55 + i * 0.12;
@@ -48,7 +48,7 @@ export default function StepRespondPanel({ p }: { p: MotionValue<number> }) {
   return (
     <SpotlightCard className="h-full p-6">
       <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#F59E0B]">Step 02 · Respond</p>
-      <div className="relative mt-3 overflow-hidden rounded-xl border border-white/10 bg-[#030712]/70">
+      <div className="relative mt-3 overflow-hidden rounded-xl border border-white/10 bg-[#020408]/70">
         <motion.svg viewBox="0 0 400 260" role="img" aria-label="Reroute lines from Camp Alpha and Chamoli Depot to Camp Delta and Camp Gamma" className="block w-full">
           <motion.g style={{ y: gridY }}>
             {Array.from({ length: 11 }).map((_, i) => <line key={`v${i}`} x1={i * 40} y1={-20} x2={i * 40} y2={300} stroke="rgba(255,255,255,0.05)" />)}

@@ -12,20 +12,19 @@ export type Impact = {
   before: Record<string, number | null>; after: Record<string, number | null>;
 };
 
-const TOKEN_KEY = "displaceos_tab_token";
 const CHANNEL = "displaceos_realtime_sync";
 const PING_KEY = "displaceos_sync_ping";
 const LIVE_KEY = "displaceos_live";
-const tabToken = () => { try { return sessionStorage.getItem(TOKEN_KEY) ?? ""; } catch { return ""; } };
-const setTabToken = (t: string | null) => { try { if (t) sessionStorage.setItem(TOKEN_KEY, t); else sessionStorage.removeItem(TOKEN_KEY); } catch { /* blocked */ } };
 
 type Ctx = {
   data: LiveState | null;
+  syncStatus: "connecting" | "connected" | "disconnected";
+  lastSyncAt: number | null;
   role: Role | null;
   user: OperatorUser | null;
   sessionPending: boolean;
   can: (p: Perm) => boolean;
-  login: (badgeId: string, passcode?: string) => Promise<boolean>;
+  login: (identifier: string, password?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   loginOpen: boolean;
   requiredRole: Role | null;
@@ -62,9 +61,10 @@ type Ctx = {
   setMeshOpen: (o: boolean) => void;
   syncing: boolean;
   syncOutbox: () => Promise<void>;
+  discardPacket: (id: string) => void;
   live: boolean;
   setLive: (l: boolean) => void;
-  verify: (campId: string) => Promise<void>;
+  verify: (campId: string, measured: number) => Promise<void>;
   reinforce: (kind: string, target: { campId?: string; dispatchId?: string }) => Promise<void>;
   requestFacility: (facility: string, campId?: string) => Promise<void>;
 };
@@ -89,7 +89,7 @@ function norm(s: Partial<LiveState> | null | undefined): LiveState {
 }
 
 async function api(url: string, init?: RequestInit) {
-  const res = await fetch(url, { cache: "no-store", ...init, headers: { "content-type": "application/json", "x-displaceos-token": tabToken() } });
+  const res = await fetch(url, { cache: "no-store", ...init, headers: { "content-type": "application/json", ...init?.headers } });
   const j = await res.json().catch(() => null);
   if (!res.ok) throw new Error(j?.error ?? `Request failed (${res.status})`);
   return j;
@@ -97,6 +97,8 @@ async function api(url: string, init?: RequestInit) {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<LiveState | null>(null);
+  const [syncStatus, setSyncStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const [user, setUser] = useState<OperatorUser | null>(null);
   const [sessionPending, setSessionPending] = useState(true);
   const [loginOpen, setLoginOpen] = useState(false);
@@ -115,6 +117,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [live, setLiveState] = useState(true);
   const liveRef = useRef(true);
   const mutating = useRef(0);
+  const refreshing = useRef(false);
+  const refreshSequence = useRef(0);
   const epoch = useRef(0);
   const chanRef = useRef<BroadcastChannel | null>(null);
   const tabId = useRef("");
@@ -127,14 +131,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const can = useCallback((p: Perm) => (role ? ROLES[role].perms.includes(p) : false), [role]);
 
   const saveOutbox = useCallback((p: Packet[]) => {
+    if (!writeOutbox(p)) return false;
     outboxRef.current = p;
     setOutbox(p);
-    writeOutbox(p);
+    return true;
   }, []);
 
-  // Session + persisted mesh state hydrate on mount.
+  // Session and device-local queue hydrate on mount.
   useEffect(() => {
     tabId.current = Math.random().toString(36).slice(2);
+    try { sessionStorage.removeItem("displaceos_tab_token"); } catch { /* storage blocked */ }
     try {
       const off = localStorage.getItem(MODE_KEY) === "1";
       offlineRef.current = off;
@@ -145,31 +151,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     outboxRef.current = q;
     setOutbox(q);
     api("/api/auth")
-      .then((j) => { setUser(j.user); setTabToken(j.token ?? null); })
+      .then((j) => { setUser(j.user); })
       .catch(() => setUser(null))
       .finally(() => setSessionPending(false));
   }, []);
 
   const refresh = useCallback(async () => {
-    // Background polling never overwrites an in-flight mutation or a result that landed while it was fetching.
-    if (offlineRef.current || mutating.current > 0) return;
+    // Polling is read-only; hide/background tabs and in-flight mutations must not create stale UI writes.
+    if (offlineRef.current || mutating.current > 0 || refreshing.current || document.visibilityState !== "visible") return;
     const ep = epoch.current;
+    const sequence = ++refreshSequence.current;
+    refreshing.current = true;
     try {
       const s: LiveState = norm(await api("/api/state"));
-      if (mutating.current > 0 || ep !== epoch.current) return;
+      if (mutating.current > 0 || ep !== epoch.current || sequence !== refreshSequence.current) return;
       const u = userRef.current;
-      // Keep queued mesh packets visible on top of fresh server state until they sync.
+      // Keep local queued actions visible on top of fresh server state until they sync.
       setData(u ? outboxRef.current.reduce((acc, pk) => applyLocal(acc, pk, u), s) : s);
+      setSyncStatus("connected");
+      setLastSyncAt(Date.now());
     } catch (e) {
       if (e instanceof Error && /Not signed in/.test(e.message)) setUser(null);
+      setSyncStatus("disconnected");
+    } finally {
+      refreshing.current = false;
     }
-  }, []);
-
-  const adopt = useCallback((raw: LiveState) => {
-    if (mutating.current > 0) return;
-    const st = norm(raw);
-    const u = userRef.current;
-    setData(u ? outboxRef.current.reduce((acc, pk) => applyLocal(acc, pk, u), st) : st);
   }, []);
 
   /** Announce a mutation to every other tab (BroadcastChannel first, storage event as fallback). */
@@ -185,46 +191,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
     refresh();
-    // Live: every 2.5s advance telemetry server-side and adopt fresh state. Otherwise a slow passive poll.
+    // Read server records every three seconds while this tab is visible; refreshes never fabricate telemetry.
     const t = setInterval(async () => {
       if (offlineRef.current || mutating.current > 0) return;
-      if (!liveRef.current) return void refresh();
-      try {
-        const ep = epoch.current;
-        const out = await api("/api/state", { method: "POST", body: JSON.stringify({ action: "TELEMETRY_TICK", payload: {} }) });
-        if (ep === epoch.current) adopt(out.state);
-      } catch (e) {
-        if (e instanceof Error && /Not signed in/.test(e.message)) setUser(null);
-      }
-    }, 2500);
+      if (!liveRef.current || document.visibilityState !== "visible") return;
+      void refresh();
+    }, 3000);
+    const onVisible = () => { if (document.visibilityState === "visible") void refresh(); };
+    const onOnline = () => { if (navigator.onLine) void refresh(); };
     const onMsg = (m: MessageEvent) => { if (m.data?.from !== tabId.current) refresh(); };
     const onStorage = (e: StorageEvent) => { if (e.key === PING_KEY && !e.newValue?.startsWith(tabId.current)) refresh(); };
     let ch: BroadcastChannel | null = null;
     try { ch = new BroadcastChannel(CHANNEL); ch.onmessage = onMsg; chanRef.current = ch; } catch { /* unsupported */ }
     window.addEventListener("storage", onStorage);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
     return () => {
       clearInterval(t);
       window.removeEventListener("storage", onStorage);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
       ch?.close();
       chanRef.current = null;
     };
-  }, [badge, refresh, adopt]);
+  }, [badge, refresh]);
 
   const setLive = useCallback((l: boolean) => {
     liveRef.current = l;
     setLiveState(l);
     try { localStorage.setItem(LIVE_KEY, l ? "1" : "0"); } catch { /* blocked */ }
-    toast(l ? "🟢 Live telemetry stream ON" : "Live telemetry paused", { description: l ? "Real-time sync across tabs" : "Passive polling only" });
-  }, []);
+    toast(l ? "🟢 Server refresh resumed" : "Server refresh paused", { description: l ? "The dashboard reads server updates every 3 seconds while this tab is visible" : "The dashboard will keep showing the last synchronized data" });
+    if (l) void refresh();
+  }, [refresh]);
 
   const setOffline = useCallback(
     (o: boolean) => {
       offlineRef.current = o;
       setOfflineState(o);
       try { localStorage.setItem(MODE_KEY, o ? "1" : "0"); } catch { /* storage blocked */ }
-      if (o) toast.warning("OFFLINE FIELD MODE · Cloud severed", { description: "Mutations queue as mesh packets in the local outbox" });
+      if (o) toast.warning("Local-only field mode", { description: "Changes are held on this device until you reconnect and sync" });
       else {
-        toast.success("Uplink restored", { description: outboxRef.current.length ? `${outboxRef.current.length} mesh packet(s) waiting to sync` : "Live sync resumed" });
+        toast.success("Server connection restored", { description: outboxRef.current.length ? `${outboxRef.current.length} action(s) waiting in the device queue` : "Server refresh resumed" });
         refresh();
       }
     },
@@ -234,11 +241,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const openLogin = useCallback((r: Role | null = null) => { setRequiredRole(r); setLoginOpen(true); }, []);
   const closeLogin = useCallback(() => setLoginOpen(false), []);
 
-  const login = useCallback(async (badgeId: string, passcode?: string) => {
+  const login = useCallback(async (identifier: string, password?: string) => {
     try {
-      const j = await api("/api/auth", { method: "POST", body: JSON.stringify(passcode ? { badgeId, passcode } : { badgeId, instant: true }) });
+      const body = password ? { email: identifier, password } : { demoBadgeId: identifier };
+      const j = await api("/api/auth", { method: "POST", body: JSON.stringify(body) });
       setUser(j.user);
-      setTabToken(j.token ?? null);
       announce();
       setLoginOpen(false);
       setSelectedCampId(null);
@@ -251,12 +258,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [announce]);
 
   const logout = useCallback(async () => {
-    await api("/api/auth", { method: "DELETE" }).catch(() => null);
-    setTabToken(null);
+    try {
+      await api("/api/auth", { method: "DELETE" });
+    } catch (error) {
+      toast.error("Could not revoke this session", { description: error instanceof Error ? error.message : "Reconnect and try again." });
+      return;
+    }
     setUser(null);
     setData(null);
+    announce();
     toast.success("Signed out");
-  }, []);
+  }, [announce]);
 
   const deny = useCallback(
     (p: Perm) => {
@@ -275,13 +287,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!user) { openLogin(); return null; }
       if (offlineRef.current) {
         if (!QUEUEABLE.has(action)) {
-          toast.error("Cloud uplink required", { description: "This command action cannot run in OFFLINE FIELD MODE" });
+          toast.error("Server connection required", { description: "This action cannot be queued for offline sync" });
           return null;
         }
         const pk = makePacket(action, payload, user);
-        saveOutbox([...outboxRef.current, pk]);
+        if (!saveOutbox([...outboxRef.current, pk])) {
+          toast.error("Could not save offline action", { description: "This browser could not persist the queue. The change was not recorded." });
+          return null;
+        }
         setData((d) => (d ? applyLocal(d, pk, user) : d));
-        toast.info("OFFLINE_QUEUED (Mesh Packet Ready)", { description: `${action} · ${pk.bytes} B queued for burst sync` });
+        toast.info("Saved on this device", { description: `${action} will be sent to the server when you sync` });
         return { result: null, queued: true };
       }
       setBusy(true);
@@ -290,6 +305,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const out = await api("/api/state", { method: "POST", body: JSON.stringify({ action, payload }) });
         setData(norm(out.state));
+        setSyncStatus("connected");
+        setLastSyncAt(Date.now());
         announce();
         return { result: out.result };
       } catch (e) {
@@ -306,38 +323,71 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const syncOutbox = useCallback(async () => {
     const q = outboxRef.current;
-    if (!q.length || syncing) return;
+    if (!q.length || syncing || !user) return;
     setSyncing(true);
     mutating.current += 1;
     epoch.current += 1;
+    const remaining: Packet[] = [];
+    let applied = 0;
+    let failed = 0;
+    let latestState: LiveState | null = null;
     try {
-      const out = await api("/api/state", {
-        method: "POST",
-        body: JSON.stringify({ action: "SYNC_OFFLINE_QUEUE", payload: { actions: q.map((p) => ({ action: p.action, payload: p.payload })) } }),
-      });
-      setData(norm(out.state));
+      for (const packet of q.slice(0, 200)) {
+        if (packet.badgeId !== user.badgeId) {
+          remaining.push(packet);
+          failed += 1;
+          continue;
+        }
+        try {
+          const out = await api("/api/state", {
+            method: "POST",
+            body: JSON.stringify({ action: packet.action, payload: packet.payload, packetId: packet.id }),
+          });
+          latestState = norm(out.state);
+          applied += 1;
+        } catch {
+          remaining.push(packet);
+          failed += 1;
+        }
+      }
+      remaining.push(...q.slice(200));
+      failed += Math.max(0, q.length - 200);
       announce();
-      saveOutbox([]);
-      const { applied, failed } = out.result;
-      toast.success(`⚡ Burst sync complete · ${applied} applied`, { description: failed ? `${failed} packet(s) rejected (RBAC / stale reference)` : "All mesh packets committed to SQLite" });
+      const persisted = saveOutbox(remaining);
+      if (latestState) setData(remaining.filter((packet) => packet.badgeId === user.badgeId).reduce((state, packet) => applyLocal(state, packet, user), latestState));
+      if (latestState) {
+        setSyncStatus("connected");
+        setLastSyncAt(Date.now());
+      }
+      if (!persisted) {
+        toast.error("Queue could not be updated on this device", { description: "Completed actions have server receipts, so a retry will not apply them twice. Keep this tab open and resolve the local storage issue." });
+        return;
+      }
+      toast.success(`Sync complete · ${applied} applied`, { description: failed ? `${failed} action(s) remain in the device queue.` : "All queued actions were sent to the server." });
     } catch (e) {
-      toast.error("Mesh sync failed", { description: e instanceof Error ? e.message : undefined });
+      toast.error("Queue sync failed", { description: e instanceof Error ? e.message : undefined });
     } finally {
       mutating.current -= 1;
       epoch.current += 1;
       setSyncing(false);
     }
-  }, [saveOutbox, syncing, announce]);
+  }, [saveOutbox, syncing, announce, user]);
+
+  const discardPacket = useCallback((id: string) => {
+    if (!saveOutbox(outboxRef.current.filter((packet) => packet.id !== id))) {
+      toast.error("Could not update the device queue", { description: "Browser storage is unavailable." });
+    }
+  }, [saveOutbox]);
 
   const value = useMemo<Ctx>(
     () => ({
-      data, role, user, sessionPending, can, login, logout, loginOpen, requiredRole, openLogin, closeLogin, deny,
+      data, syncStatus, lastSyncAt, role, user, sessionPending, can, login, logout, loginOpen, requiredRole, openLogin, closeLogin, deny,
       selectedCampId, setSelectedCampId, survivorQuery, setSurvivorQuery, triageId, setTriageId, paletteOpen, setPaletteOpen,
-      selectedDepot, setSelectedDepot, busy, impact, setImpact, offline, setOffline, outbox, meshOpen, setMeshOpen, syncing, syncOutbox, live, setLive,
-      verify: async (campId) => {
+      selectedDepot, setSelectedDepot, busy, impact, setImpact, offline, setOffline, outbox, meshOpen, setMeshOpen, syncing, syncOutbox, discardPacket, live, setLive,
+      verify: async (campId, measured) => {
         if (!can("VERIFY")) return deny("VERIFY");
-        const r = await exec("VERIFY_GROUND_TRUTH", { campId }, "Verification failed");
-        if (r?.result) toast.success(`🛡️ ${r.result.campName} reconciled`, { description: `Accuracy ${r.result.before.score}% → ${r.result.after.score}% · hash ${r.result.hash.slice(0, 12)}…` });
+        const r = await exec("VERIFY_GROUND_TRUTH", { campId, measured }, "Field count could not be recorded");
+        if (r?.result) toast.success(`Field count recorded · ${r.result.campName}`, { description: `Agreement estimate ${r.result.before.score}% → ${r.result.after.score}% · hash ${r.result.hash.slice(0, 12)}…` });
       },
       reinforce: async (kind, target) => {
         if (!can("REINFORCE")) return deny("REINFORCE");
@@ -356,10 +406,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const i: Impact = r.result;
         if (i.food || i.medicine) {
           setImpact(i);
-          toast.success("🧠 Surplus rebalanced", {
+          toast.success("Transfer dispatches created", {
             description: `${i.food} food ${i.foodFrom} → ${i.foodTo} · ${i.medicine} kits ${i.medFrom} → ${i.medTo}`,
           });
-        } else toast.info("Nothing to rebalance", { description: "No surplus/shortage pair detected" });
+        } else toast.info("No new transfer dispatched", { description: "No eligible surplus/shortage pair was found, or a transfer is already in transit." });
       },
       flood: async () => {
         if (!can("SIMULATE")) return deny("SIMULATE");
@@ -367,6 +417,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (r?.result?.camp) toast.error("🚨 Flash flood SOS", { description: `${r.result.camp.name}: +120 evacuees, NDRF boat dispatched` });
       },
       reset: async () => {
+        if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true" || !can("REBALANCE")) return;
         const r = await exec("RESET_DEMO", {}, "Reset failed");
         if (r) {
           setSelectedCampId(null); setSelectedDepot(null); setTriageId(null); setImpact(null);
@@ -410,8 +461,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (r && !r.queued) toast.success(`${name} → ${status}`);
       },
     }),
-    [data, role, user, sessionPending, can, login, logout, loginOpen, requiredRole, openLogin, closeLogin, deny, selectedCampId,
-      survivorQuery, triageId, paletteOpen, selectedDepot, busy, impact, offline, setOffline, outbox, meshOpen, syncing, syncOutbox, live, setLive, exec],
+    [data, syncStatus, lastSyncAt, role, user, sessionPending, can, login, logout, loginOpen, requiredRole, openLogin, closeLogin, deny, selectedCampId,
+      survivorQuery, triageId, paletteOpen, selectedDepot, busy, impact, offline, setOffline, outbox, meshOpen, syncing, syncOutbox, discardPacket, live, setLive, exec],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

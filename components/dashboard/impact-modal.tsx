@@ -27,15 +27,15 @@ export default function ImpactModal() {
           className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
           <motion.div data-lenis-prevent role="dialog" aria-modal="true" aria-label="Rebalance impact summary" initial={{ opacity: 0, scale: 0.94, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }}
             onClick={(e) => e.stopPropagation()} className="w-full max-w-xl rounded-2xl border border-[#10B981]/30 bg-[#0B1220]/95 p-6 shadow-2xl shadow-black/60 backdrop-blur-xl">
-            <p className="font-mono text-[10px] tracking-[0.25em] text-[#10B981]">ATOMIC TRANSACTION COMMITTED</p>
-            <h2 className="mt-1 text-xl font-bold text-white">1-Tap Rebalance · Impact Summary</h2>
+            <p className="font-mono text-[10px] tracking-[0.25em] text-[#10B981]">DISPATCH CREATED</p>
+            <h2 className="mt-1 text-xl font-bold text-white">Rebalance · Dispatch Summary</h2>
             <p className="mt-2 text-sm text-slate-300">
               {impact.food > 0 && <>{impact.food} food packets {impact.foodFrom} → {impact.foodTo}. </>}
               {impact.medicine > 0 && <>{impact.medicine} medical kits {impact.medFrom} → {impact.medTo}. </>}
-              Convoys: <span className="font-mono text-[#38BDF8]">{impact.convoys.join(", ")}</span>
+              Receiving stock is credited only after delivery is confirmed. Convoys: <span className="font-mono text-[#38BDF8]">{impact.convoys.join(", ")}</span>
             </p>
             <table className="mt-4 w-full text-left text-xs">
-              <thead className="text-[10px] uppercase tracking-wider text-slate-500"><tr><th className="py-1">Metric</th><th>Before</th><th>After</th></tr></thead>
+              <thead className="text-[10px] uppercase tracking-wider text-slate-500"><tr><th className="py-1">Metric</th><th>Before</th><th>After dispatch</th></tr></thead>
               <tbody>
                 {rows.map(([l, b, a], i) => (
                   <motion.tr key={l} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.08 * i }} className="border-t border-white/5">

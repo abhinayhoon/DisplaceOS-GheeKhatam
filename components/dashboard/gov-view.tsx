@@ -50,7 +50,7 @@ export default function GovView() {
         <h2 className="mb-3 text-sm font-semibold text-white">Global depot stock</h2>
         <div className="grid gap-3 md:grid-cols-3">
           {data.depots.map((d) => (
-            <motion.div whileHover={{ scale: 1.02, translateY: -2 }} key={d.id} className="rounded-xl border border-white/10 bg-[#030712] p-3">
+            <motion.div whileHover={{ scale: 1.02, translateY: -2 }} key={d.id} className="rounded-xl border border-white/10 bg-[#020408] p-3">
               <p className="text-sm font-medium text-white">{d.name}</p>
               <p className="text-[10px] text-slate-500">{d.district}</p>
               <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { authClient } from "@/lib/auth-client";
 import PasswordField, { fieldClass } from "./password-field";
 
 type CampOpt = { id: string; name: string; district: string };
@@ -14,7 +13,6 @@ export default function SignupForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("RELIEF_CAMP");
   const [campId, setCampId] = useState("");
   const [camps, setCamps] = useState<CampOpt[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,7 +29,7 @@ export default function SignupForm() {
     const res = await fetch("/api/register", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, email, password, role, campId: role === "RELIEF_CAMP" ? campId : null }),
+      body: JSON.stringify({ name, email, password, role: "RELIEF_CAMP", campId }),
     });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -40,16 +38,9 @@ export default function SignupForm() {
       toast.error("Sign up failed", { description: j.error });
       return;
     }
-    const { error: err } = await authClient.signIn.email({ email: email.trim().toLowerCase(), password });
-    if (err) {
-      setLoading(false);
-      toast.success("Account created", { description: "Please sign in." });
-      router.push("/login");
-      return;
-    }
-    toast.success("Account created");
-    router.push("/dashboard");
-    router.refresh();
+    setLoading(false);
+    toast.success("Registration submitted", { description: "An administrator must approve your camp account before you can sign in." });
+    router.push("/login?pendingApproval=1");
   };
 
   return (
@@ -68,21 +59,13 @@ export default function SignupForm() {
           <PasswordField id="password" value={password} onChange={setPassword} autoComplete="new-password" />
         </div>
         <div>
-          <label htmlFor="role" className="mb-1 block text-xs text-slate-400">Role</label>
-          <select id="role" value={role} onChange={(e) => setRole(e.target.value)} className={fieldClass}>
-            <option value="RELIEF_CAMP">⛺ Relief Camp (Camp Manager)</option>
-            <option value="RESCUE_TEAM">🚁 Rescue Team (NDRF Field Unit)</option>
+          <label htmlFor="camp" className="mb-1 block text-xs text-slate-400">Requested camp assignment</label>
+          <select id="camp" required value={campId} onChange={(e) => setCampId(e.target.value)} className={fieldClass}>
+            <option value="">Select camp…</option>
+            {camps.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.district}</option>)}
           </select>
+          <p className="mt-1 text-xs text-slate-500">New accounts require administrator approval.</p>
         </div>
-        {role === "RELIEF_CAMP" && (
-          <div>
-            <label htmlFor="camp" className="mb-1 block text-xs text-slate-400">Your camp</label>
-            <select id="camp" required value={campId} onChange={(e) => setCampId(e.target.value)} className={fieldClass}>
-              <option value="">Select camp…</option>
-              {camps.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.district}</option>)}
-            </select>
-          </div>
-        )}
         {error && <p role="alert" className="text-sm text-[#EF4444]">{error}</p>}
         <button type="submit" disabled={loading} className="w-full rounded-lg bg-[#F59E0B] py-2.5 text-sm font-bold text-[#1a1100] transition hover:shadow-[0_0_28px_rgba(245,158,11,0.5)] active:scale-[0.98] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
           {loading ? "Creating account…" : "Create account"}

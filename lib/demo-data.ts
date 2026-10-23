@@ -53,8 +53,8 @@ export async function seedDemo(db: PrismaClient | Prisma.TransactionClient) {
     { teamName: "NDRF Charlie", unitCode: "NDRF-09", vehicleType: "NDRF_BOAT", originName: "Camp Zeta", targetCampId: zeta.id, targetCampName: zeta.name, resourceType: "MEDICINE", quantity: 40, etaMinutes: 90, routeStatus: "CLEAR", progressPercent: 10 },
   ]});
 
-  const p = (fullName: string, age: number, medicalNeeds: string, c: { name: string; district: string }, familyGroupCode: string, status: string) =>
-    ({ fullName, age, medicalNeeds, currentCampName: c.name, district: c.district, familyGroupCode, status });
+  const p = (fullName: string, age: number, medicalNeeds: string, c: { id: string; name: string; district: string }, familyGroupCode: string, status: string) =>
+    ({ fullName, age, medicalNeeds, currentCampName: c.name, campId: c.id, district: c.district, familyGroupCode, status });
   await db.displacedPerson.createMany({ data: [
     p("Ramesh Rawat", 62, "Insulin-dependent diabetes", gamma, "FAM-101", "NEEDS_MEDEVAC"),
     p("Sunita Rawat", 58, "None", gamma, "FAM-101", "SAFE_IN_CAMP"),
@@ -71,6 +71,6 @@ export async function seedDemo(db: PrismaClient | Prisma.TransactionClient) {
   ]});
 
   await db.triageWeights.create({ data: { id: "global", routeReliability: 1, burnDrift: 1, facilityPenalty: 0.25, historyJson: "[]" } });
-  await db.telemetryEvent.create({ data: { kind: "SYSTEM", message: "Crisis seed loaded · telemetry stream armed" } });
+  await db.telemetryEvent.create({ data: { kind: "SYSTEM", message: "Sample scenario loaded · no external field feeds connected" } });
   return { deltaId: delta.id };
 }

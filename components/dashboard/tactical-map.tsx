@@ -37,7 +37,7 @@ export default function TacticalMap() {
   return (
     <div className={`${card} grid gap-0 overflow-hidden lg:grid-cols-[1fr_280px]`}>
       <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Tactical map of Uttarkashi, Chamoli, Rudraprayag and Tehri relief camps" className="block w-full bg-[#030712]">
+        <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Tactical map of Uttarkashi, Chamoli, Rudraprayag and Tehri relief camps" className="block w-full bg-[#020408]">
           <defs>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="rgba(255,255,255,0.04)" /></pattern>
           </defs>
@@ -85,7 +85,7 @@ export default function TacticalMap() {
                 {tone === "CRITICAL" && (
                   <motion.circle cx={x} cy={y} fill={color} initial={{ r: 8, opacity: 0.5 }} animate={{ r: 26, opacity: 0 }} transition={{ duration: 1.6, repeat: Infinity }} />
                 )}
-                <circle cx={x} cy={y} r={active ? 12 : 9} fill={color} stroke={active ? "#fff" : "#030712"} strokeWidth={2.5} />
+                <circle cx={x} cy={y} r={active ? 12 : 9} fill={color} stroke={active ? "#fff" : "#020408"} strokeWidth={2.5} />
                 <text x={x} y={y - 16} textAnchor="middle" fontSize="10" fontWeight="600" fill="#e2e8f0">{c.name}</text>
               </g>
             );
@@ -99,7 +99,7 @@ export default function TacticalMap() {
         </div>
       </div>
       <aside className="border-t border-white/10 p-4 lg:border-l lg:border-t-0">
-        {sel ? <CampInspector id={sel.id} /> : selectedDepot ? <DepotInspector name={selectedDepot} /> : <p className="text-sm text-slate-500">Select a camp or depot node to inspect live inventory.</p>}
+        {sel ? <CampInspector id={sel.id} /> : selectedDepot ? <DepotInspector name={selectedDepot} /> : <p className="text-sm text-slate-500">Select a camp or depot node to inspect recorded inventory.</p>}
       </aside>
     </div>
   );

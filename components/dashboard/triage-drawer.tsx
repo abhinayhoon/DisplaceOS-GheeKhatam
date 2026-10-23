@@ -24,7 +24,7 @@ export default function TriageDrawer() {
       {r && (
         <>
           <motion.div className="fixed inset-0 z-[60] bg-black/60" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setTriageId(null)} />
-          <motion.aside role="dialog" aria-modal="true" aria-label="Triage algorithm" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 28, stiffness: 260 }}
+          <motion.aside data-lenis-prevent role="dialog" aria-modal="true" aria-label="Triage algorithm" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 28, stiffness: 260 }}
             className="fixed inset-y-0 right-0 z-[70] w-[min(94vw,460px)] overflow-y-auto border-l border-white/10 bg-[#0F1624] p-6">
             <div className="flex items-start justify-between">
               <div>

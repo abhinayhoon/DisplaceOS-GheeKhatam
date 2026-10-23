@@ -43,7 +43,7 @@ export default function CommandPalette() {
         placeholder="Jump to camp, search survivor, rebalance, switch role…"
         className="w-full border-b border-white/10 bg-transparent px-4 py-3.5 text-sm text-white outline-none placeholder:text-slate-500"
       />
-      <Command.List className="max-h-[50vh] overflow-y-auto p-2">
+      <Command.List data-lenis-prevent className="max-h-[50vh] overflow-y-auto p-2">
         <Command.Empty className="px-3 py-6 text-center text-sm text-slate-500">No match.</Command.Empty>
         <Command.Group heading="Actions" className={heading}>
           <Command.Item className={item} onSelect={go(() => { router.push("/dashboard"); rebalance(); })}>

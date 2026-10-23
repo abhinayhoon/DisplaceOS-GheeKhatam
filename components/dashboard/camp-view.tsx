@@ -15,8 +15,8 @@ const input = "w-full rounded-lg border border-white/10 bg-[#030712] px-3 py-2 t
 export default function CampView() {
   const { data, selectedCampId, setSelectedCampId, createRequest, savePerson, adjustStock, busy } = useApp();
   const [type, setType] = useState("FOOD");
-  const [qty, setQty] = useState(500);
-  const [p, setP] = useState({ fullName: "", age: 30, medicalNeeds: "", familyGroupCode: "" });
+  const [qty, setQty] = useState("500");
+  const [p, setP] = useState({ fullName: "", age: "30", medicalNeeds: "", familyGroupCode: "" });
   if (!data) return null;
   const camp = data.camps.find((c) => c.id === selectedCampId) ?? data.camps[0];
   if (!camp) return null;
@@ -30,13 +30,13 @@ export default function CampView() {
         </select>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
-        <form className={`${card} space-y-3 p-4`} onSubmit={async (e) => { e.preventDefault(); await createRequest({ campId: camp.id, resourceType: type, quantityNeeded: qty }); }}>
+        <form className={`${card} space-y-3 p-4`} onSubmit={async (e) => { e.preventDefault(); await createRequest({ campId: camp.id, resourceType: type, quantityNeeded: Math.max(1, Number(qty) || 1) }); }}>
           <h2 className="text-sm font-semibold text-white">🆘 Submit SOS Resource Request</h2>
           <label className="block text-xs text-slate-400">Resource
             <select value={type} onChange={(e) => setType(e.target.value)} className={`${input} mt-1`}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select>
           </label>
           <label className="block text-xs text-slate-400">Quantity needed
-            <input type="number" min={1} required value={qty} onChange={(e) => setQty(Math.max(1, +e.target.value))} className={`${input} mt-1`} />
+            <input type="number" min={1} required value={qty} onChange={(e) => setQty(e.target.value)} className={`${input} mt-1`} />
           </label>
           <motion.button whileTap={{ scale: 0.98 }} type="submit" disabled={busy} className="w-full rounded-lg bg-[#EF4444] py-2 text-sm font-bold text-white hover:bg-[#dc2626] disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Send SOS</motion.button>
         </form>
@@ -59,13 +59,13 @@ export default function CampView() {
 
         <form className={`${card} space-y-3 p-4`} onSubmit={async (e) => {
           e.preventDefault();
-          const ok = await savePerson({ ...p, medicalNeeds: p.medicalNeeds || "None", currentCampName: camp.name, district: camp.district });
-          if (ok) setP({ fullName: "", age: 30, medicalNeeds: "", familyGroupCode: "" });
+          const ok = await savePerson({ ...p, age: Math.max(0, Number(p.age) || 0), medicalNeeds: p.medicalNeeds || "None", currentCampName: camp.name, district: camp.district });
+          if (ok) setP({ fullName: "", age: "30", medicalNeeds: "", familyGroupCode: "" });
         }}>
           <h2 className="text-sm font-semibold text-white">Register Displaced Person</h2>
           <input required placeholder="Full name" aria-label="Full name" value={p.fullName} onChange={(e) => setP({ ...p, fullName: e.target.value })} className={input} />
           <div className="grid grid-cols-2 gap-2">
-            <input required type="number" min={0} max={120} aria-label="Age" value={p.age} onChange={(e) => setP({ ...p, age: +e.target.value })} className={input} />
+            <input required type="number" min={0} max={120} aria-label="Age" value={p.age} onChange={(e) => setP({ ...p, age: e.target.value })} className={input} />
             <input required placeholder="FAM-107" aria-label="Family group code" value={p.familyGroupCode} onChange={(e) => setP({ ...p, familyGroupCode: e.target.value.toUpperCase() })} className={input} />
           </div>
           <input placeholder="Medical needs (optional)" aria-label="Medical needs" value={p.medicalNeeds} onChange={(e) => setP({ ...p, medicalNeeds: e.target.value })} className={input} />

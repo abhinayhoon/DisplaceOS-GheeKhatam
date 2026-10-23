@@ -11,7 +11,7 @@ export default function RequestsPanel({ approvable = false }: { approvable?: boo
   return (
     <section className={`${card} p-4`} aria-label="Resource requests">
       <h2 className="mb-3 text-sm font-semibold text-white">Resource Requests · ranked by urgency</h2>
-      <div className="overflow-x-auto">
+      <div data-lenis-prevent className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-xs">
           <thead className="text-[10px] uppercase tracking-wider text-slate-500">
             <tr><th className="py-2">Camp</th><th>Type</th><th>Qty</th><th>Urgency</th><th>Status</th><th /></tr>

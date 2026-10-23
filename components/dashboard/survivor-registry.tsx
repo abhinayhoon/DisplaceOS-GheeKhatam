@@ -28,7 +28,7 @@ export default function SurvivorRegistry() {
           ))}
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div data-lenis-prevent className="overflow-x-auto">
         <table className="w-full min-w-[680px] text-left text-xs">
           <thead className="text-[10px] uppercase tracking-wider text-slate-500"><tr><th className="py-2">Name</th><th>Age</th><th>Family</th><th>Camp</th><th>Medical</th><th>Status</th></tr></thead>
           <tbody>

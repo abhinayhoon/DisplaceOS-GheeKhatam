@@ -23,7 +23,7 @@ export type Perm = "REBALANCE" | "APPROVE" | "SIMULATE" | "REQUEST" | "STOCK" | 
 export const ROLES: Record<Role, { label: string; short: string; badge: string; perms: Perm[] }> = {
   GOV_AGENCY: {
     label: "🏛️ Gov Agency (NDMA Command)", short: "Gov Agency", badge: "FULL COMMAND · REBALANCE · APPROVE",
-    perms: ["REBALANCE", "APPROVE", "SIMULATE", "TRIAGE_STATUS"],
+    perms: ["REBALANCE", "APPROVE", "SIMULATE", "DISPATCH", "TRIAGE_STATUS"],
   },
   RELIEF_CAMP: {
     label: "⛺ Relief Camp (Camp Manager)", short: "Camp Manager", badge: "CAMP OPS · SOS REQUEST · REGISTER",
@@ -31,7 +31,7 @@ export const ROLES: Record<Role, { label: string; short: string; badge: string; 
   },
   RESCUE_TEAM: {
     label: "🚁 Rescue Team (NDRF Field Unit)", short: "NDRF Field Unit", badge: "FIELD OPS · DISPATCH · DELIVER",
-    perms: ["DISPATCH", "SIMULATE", "TRIAGE_STATUS"],
+    perms: ["DISPATCH"],
   },
 };
 

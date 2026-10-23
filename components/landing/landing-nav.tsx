@@ -5,6 +5,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 
 const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/login", label: "Login" },
   { href: "#roles", label: "Roles" },
   { href: "#capabilities", label: "Capabilities" },
 ];

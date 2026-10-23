@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { Command } from "cmdk";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/components/providers";
-import { ROLES, type Role } from "@/lib/types";
 
 const item =
   "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 data-[selected=true]:bg-[#38BDF8]/15 data-[selected=true]:text-white";
@@ -12,7 +11,7 @@ const heading =
   "[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-slate-500";
 
 export default function CommandPalette() {
-  const { data, paletteOpen, setPaletteOpen, setRole, setSelectedCampId, setSurvivorQuery, rebalance, flood } = useApp();
+  const { data, paletteOpen, setPaletteOpen, setSelectedCampId, setSurvivorQuery, rebalance, flood } = useApp();
   const router = useRouter();
 
   useEffect(() => {
@@ -52,13 +51,6 @@ export default function CommandPalette() {
           <Command.Item className={item} onSelect={go(() => { router.push("/dashboard"); flood(); })}>
             ⚡ Simulate Flash Flood SOS
           </Command.Item>
-        </Command.Group>
-        <Command.Group heading="Switch role" className={heading}>
-          {(Object.keys(ROLES) as Role[]).map((r) => (
-            <Command.Item key={r} className={item} value={`role ${ROLES[r].label}`} onSelect={go(() => { setRole(r); router.push("/dashboard"); })}>
-              {ROLES[r].label}
-            </Command.Item>
-          ))}
         </Command.Group>
         <Command.Group heading="Camps" className={heading}>
           {data?.camps.map((c) => (

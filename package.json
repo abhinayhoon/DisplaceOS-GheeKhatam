@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "better-auth": "^1.7.12",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "framer-motion": "^14.6.0",

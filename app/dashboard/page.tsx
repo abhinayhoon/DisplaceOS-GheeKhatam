@@ -1,6 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/components/providers";
 import Navbar from "@/components/dashboard/navbar";
 import AlertBanner from "@/components/dashboard/alert-banner";
@@ -13,7 +15,11 @@ import SurvivorRegistry from "@/components/dashboard/survivor-registry";
 import TelemetryBar from "@/components/dashboard/telemetry-bar";
 
 export default function DashboardPage() {
-  const { role, data } = useApp();
+  const { role, data, sessionPending } = useApp();
+  const router = useRouter();
+  useEffect(() => {
+    if (!sessionPending && !role) router.replace("/login?next=/dashboard");
+  }, [sessionPending, role, router]);
   const crit = data?.camps.filter((c) => c.status === "CRITICAL").length ?? 0;
   const people = data?.people.length ?? 0;
   const open = data?.requests.filter((r) => r.status === "PENDING").length ?? 0;
@@ -21,6 +27,7 @@ export default function DashboardPage() {
     ["Critical camps", crit, "#EF4444"], ["Pending SOS", open, "#F59E0B"],
     ["Active convoys", data?.dispatches.filter((d) => d.routeStatus !== "DELIVERED").length ?? 0, "#38BDF8"], ["Registered survivors", people, "#10B981"],
   ];
+  if (!role) return <main className="flex flex-1 items-center justify-center text-sm text-slate-500">Checking session…</main>;
   return (
     <>
       <Navbar />

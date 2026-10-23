@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { AuthError, requireUser } from "@/lib/session";
 
 type ResourceType = "FOOD" | "WATER" | "MEDICINE" | "SHELTER" | "EVACUATION";
 type RouteStatus = "CLEAR" | "LANDSLIDE_DETOUR" | "DELIVERED";
@@ -13,6 +14,7 @@ const CAMP_FIELD: Record<string, "foodPackets" | "waterLiters" | "medicalKits" |
 };
 
 export async function getLiveState() {
+  await requireUser();
   const [camps, requests, depots, dispatches, people] = await Promise.all([
     prisma.reliefCamp.findMany({ orderBy: { name: "asc" } }),
     prisma.resourceRequest.findMany({ orderBy: { urgencyScore: "desc" } }),
@@ -24,6 +26,7 @@ export async function getLiveState() {
 }
 
 export async function rebalanceSurplus() {
+  await requireUser("GOV_AGENCY");
   const alpha = await prisma.reliefCamp.findFirst({ where: { name: "Camp Alpha" } });
   const delta = await prisma.reliefCamp.findFirst({ where: { name: "Camp Delta" } });
   const gamma = await prisma.reliefCamp.findFirst({ where: { name: "Camp Gamma" } });
@@ -80,6 +83,7 @@ export async function rebalanceSurplus() {
 }
 
 export async function simulateFlashFlood() {
+  await requireUser("GOV_AGENCY");
   const camps = await prisma.reliefCamp.findMany();
   const target = camps.find((c) => c.name === "Camp Beta") ?? camps[0];
   if (!target) return null;
@@ -121,7 +125,11 @@ export async function createResourceRequest(input: {
   quantityNeeded: number;
   runwayHours?: number;
 }) {
-  const camp = await prisma.reliefCamp.findUnique({ where: { id: input.campId } });
+  const user = await requireUser("RELIEF_CAMP");
+  if (!user.campId) throw new AuthError(403, "No camp assigned");
+  if (![...Object.keys(CAMP_FIELD), "EVACUATION"].includes(input.resourceType)) throw new Error("Invalid resource type");
+  if (!Number.isInteger(input.quantityNeeded) || input.quantityNeeded < 1 || input.quantityNeeded > 100000) throw new Error("Invalid quantity");
+  const camp = await prisma.reliefCamp.findUnique({ where: { id: user.campId } });
   if (!camp) throw new Error("Camp not found");
 
   const field = CAMP_FIELD[input.resourceType];
@@ -149,6 +157,8 @@ export async function createResourceRequest(input: {
 }
 
 export async function updateDispatchStatus(id: string, routeStatus: RouteStatus) {
+  await requireUser("RESCUE_TEAM", "GOV_AGENCY");
+  if (!["CLEAR", "LANDSLIDE_DETOUR", "DELIVERED"].includes(routeStatus)) throw new Error("Invalid route status");
   const d = await prisma.rescueDispatch.findUnique({ where: { id } });
   if (!d) throw new Error("Dispatch not found");
   if (routeStatus !== "DELIVERED") {
@@ -186,6 +196,17 @@ export async function upsertDisplacedPerson(input: {
   familyGroupCode: string;
   status?: "SAFE_IN_CAMP" | "NEEDS_MEDEVAC" | "REUNITED";
 }) {
+  const user = await requireUser("GOV_AGENCY", "RELIEF_CAMP");
+  if (input.status && !["SAFE_IN_CAMP", "NEEDS_MEDEVAC", "REUNITED"].includes(input.status)) throw new Error("Invalid status");
+  if (user.role === "RELIEF_CAMP") {
+    const own = user.campId ? await prisma.reliefCamp.findUnique({ where: { id: user.campId } }) : null;
+    if (!own) throw new AuthError(403, "No camp assigned");
+    if (input.id) {
+      const existing = await prisma.displacedPerson.findUnique({ where: { id: input.id } });
+      if (!existing || existing.currentCampName !== own.name) throw new AuthError(403, "Not your camp");
+    }
+    input = { ...input, currentCampName: own.name, district: own.district };
+  }
   const data = {
     fullName: input.fullName, age: input.age, medicalNeeds: input.medicalNeeds ?? "None",
     currentCampName: input.currentCampName, district: input.district,
@@ -197,6 +218,7 @@ export async function upsertDisplacedPerson(input: {
 }
 
 export async function approveRequest(id: string) {
+  await requireUser("GOV_AGENCY");
   return prisma.resourceRequest.update({ where: { id }, data: { status: "ALLOCATED" } });
 }
 
@@ -205,6 +227,10 @@ export async function adjustCampStock(
   field: "foodPackets" | "waterLiters" | "medicalKits" | "shelterTents",
   delta: number,
 ) {
+  const user = await requireUser("RELIEF_CAMP");
+  if (!user.campId || user.campId !== campId) throw new AuthError(403, "Not your camp");
+  if (!["foodPackets", "waterLiters", "medicalKits", "shelterTents"].includes(field)) throw new Error("Invalid field");
+  if (!Number.isInteger(delta) || Math.abs(delta) > 10000) throw new Error("Invalid delta");
   const camp = await prisma.reliefCamp.findUnique({ where: { id: campId } });
   if (!camp) throw new Error("Camp not found");
   return prisma.reliefCamp.update({ where: { id: campId }, data: { [field]: Math.max(0, camp[field] + delta) } });

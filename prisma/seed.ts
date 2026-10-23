@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "better-auth/crypto";
 const db = new PrismaClient();
 
 async function main() {
@@ -59,5 +60,18 @@ async function main() {
     p("Suresh Chauhan", 29, "None", zeta, "FAM-106", "SAFE_IN_CAMP"),
     p("Lata Chauhan", 3, "Dehydration", zeta, "FAM-106", "SAFE_IN_CAMP"),
   ]});
+
+  const hash = await hashPassword("Demo@12345");
+  const demo: [string, string, string, string | null][] = [
+    ["gov@displaceos.demo", "Gov Command (NDMA)", "GOV_AGENCY", null],
+    ["camp@displaceos.demo", "Camp Manager (Delta)", "RELIEF_CAMP", delta.id],
+    ["rescue@displaceos.demo", "NDRF Field Unit", "RESCUE_TEAM", null],
+  ];
+  for (const [email, name, role, campId] of demo) {
+    const u = await db.user.upsert({ where: { email }, update: { name, role, campId, emailVerified: true }, create: { email, name, role, campId, emailVerified: true } });
+    const a = await db.account.findFirst({ where: { userId: u.id, providerId: "credential" } });
+    if (a) await db.account.update({ where: { id: a.id }, data: { password: hash } });
+    else await db.account.create({ data: { accountId: u.id, providerId: "credential", userId: u.id, password: hash } });
+  }
 }
 main().finally(() => db.$disconnect());

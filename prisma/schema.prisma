@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model ReliefCamp {
+  id               String   @id @default(cuid())
+  name             String
+  district         String
+  lat              Float
+  lng              Float
+  capacity         Int
+  currentOccupancy Int
+  status           String // CRITICAL | STABLE | OVERFLOW
+  foodPackets      Int
+  waterLiters      Int
+  medicalKits      Int
+  shelterTents     Int
+  burnRatePerHour  Int
+  updatedAt        DateTime @updatedAt
+}
+
+model ResourceRequest {
+  id             String   @id @default(cuid())
+  campId         String
+  campName       String
+  district       String
+  resourceType   String // FOOD | WATER | MEDICINE | SHELTER | EVACUATION
+  quantityNeeded Int
+  urgencyScore   Int
+  status         String // PENDING | ALLOCATED | IN_TRANSIT | DELIVERED
+  duplicateFlag  Boolean  @default(false)
+  reasoningJson  String
+  createdAt      DateTime @default(now())
+}
+
+model SupplyDepot {
+  id           String @id @default(cuid())
+  name         String
+  district     String
+  foodStock    Int
+  waterStock   Int
+  medicineStock Int
+  shelterStock Int
+}
+
+model RescueDispatch {
+  id             String @id @default(cuid())
+  teamName       String
+  unitCode       String
+  vehicleType    String // NDRF_BOAT | HELI_AIRLIFT | HEAVY_TRUCK
+  originName     String
+  targetCampId   String
+  targetCampName String
+  resourceType   String
+  quantity       Int
+  etaMinutes     Int
+  routeStatus    String // CLEAR | LANDSLIDE_DETOUR | DELIVERED
+  progressPercent Int
+}
+
+model DisplacedPerson {
+  id              String @id @default(cuid())
+  fullName        String
+  age             Int
+  medicalNeeds    String
+  currentCampName String
+  district        String
+  familyGroupCode String
+  status          String // SAFE_IN_CAMP | NEEDS_MEDEVAC | REUNITED
+}

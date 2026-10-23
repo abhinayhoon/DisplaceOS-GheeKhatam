@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { ReactNode } from "react";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { AppProvider } from "@/components/providers";
@@ -8,26 +8,16 @@ import CommandPalette from "@/components/command-palette";
 import SmoothScroll from "@/components/smooth-scroll";
 import OperatorModal from "@/components/auth/operator-modal";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
   title: "DisplaceOS — Unified Disaster Relief Coordination",
   description: "A disaster-response coordination prototype for camp resources, requests, dispatches, and survivor records.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <body className="flex min-h-full flex-col bg-[#020408] text-slate-200">
         <AppProvider>

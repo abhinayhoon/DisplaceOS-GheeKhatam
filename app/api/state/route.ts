@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getLiveState, rebalanceSurplus, simulateFlashFlood, createResourceRequest, updateDispatchStatus, upsertDisplacedPerson } from "@/lib/actions";
+import { getLiveState, rebalanceSurplus, simulateFlashFlood, createResourceRequest, updateDispatchStatus, upsertDisplacedPerson, approveRequest, adjustCampStock } from "@/lib/actions";
 
 export async function GET() {
   return NextResponse.json(await getLiveState());
@@ -18,6 +18,10 @@ export async function POST(req: Request) {
       return NextResponse.json(await updateDispatchStatus(payload.id, payload.routeStatus));
     case "person":
       return NextResponse.json(await upsertDisplacedPerson(payload));
+    case "approve":
+      return NextResponse.json(await approveRequest(payload.id));
+    case "stock":
+      return NextResponse.json(await adjustCampStock(payload.campId, payload.field, payload.delta));
     default:
       return NextResponse.json({ error: "unknown action" }, { status: 400 });
   }

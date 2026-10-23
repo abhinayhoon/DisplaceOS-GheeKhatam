@@ -195,3 +195,17 @@ export async function upsertDisplacedPerson(input: {
     ? prisma.displacedPerson.update({ where: { id: input.id }, data })
     : prisma.displacedPerson.create({ data });
 }
+
+export async function approveRequest(id: string) {
+  return prisma.resourceRequest.update({ where: { id }, data: { status: "ALLOCATED" } });
+}
+
+export async function adjustCampStock(
+  campId: string,
+  field: "foodPackets" | "waterLiters" | "medicalKits" | "shelterTents",
+  delta: number,
+) {
+  const camp = await prisma.reliefCamp.findUnique({ where: { id: campId } });
+  if (!camp) throw new Error("Camp not found");
+  return prisma.reliefCamp.update({ where: { id: campId }, data: { [field]: Math.max(0, camp[field] + delta) } });
+}

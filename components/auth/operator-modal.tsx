@@ -13,15 +13,14 @@ const NAME = { GOV_AGENCY: "NDMA Command", RELIEF_CAMP: "Relief Camp Manager", R
 const DEMO_ENABLED = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 export default function OperatorModal() {
-  const { loginOpen, closeLogin, login, user, requiredRole, sessionPending } = useApp();
+  const { loginOpen, closeLogin, login, user, requiredRole } = useApp();
   const router = useRouter();
   const path = usePathname();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [readinessMessage, setReadinessMessage] = useState("");
-  const gated = path.startsWith("/dashboard") && !user && !sessionPending;
-  const open = loginOpen || gated;
+  const open = loginOpen;
 
   useEffect(() => {
     if (!open) return;
@@ -37,7 +36,7 @@ export default function OperatorModal() {
     return () => controller.abort();
   }, [open]);
 
-  useOverlay(open, gated ? undefined : closeLogin);
+  useOverlay(open, closeLogin);
 
   const go = async (identifier: string, credential?: string) => {
     setPending(true);
@@ -54,7 +53,7 @@ export default function OperatorModal() {
       {open && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 1.04, filter: "blur(8px)" }} transition={{ duration: 0.35 }}
           className="fixed inset-0 z-[120] flex items-center justify-center bg-[#020408]/70 p-4 backdrop-blur-2xl"
-          onClick={() => !gated && closeLogin()}>
+          onClick={closeLogin}>
           <motion.div data-lenis-prevent role="dialog" aria-modal="true" aria-label="Operator sign in" initial={{ opacity: 0, y: 28, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -24, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 240, damping: 26 }} onClick={(e) => e.stopPropagation()}
             className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-black/60 p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
@@ -88,7 +87,7 @@ export default function OperatorModal() {
               <input aria-label="Password" placeholder="Password" type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} className={input} />
               <div className="flex gap-2">
                 <motion.button whileTap={{ scale: 0.98 }} type="submit" disabled={pending} className="flex-1 rounded-full bg-white py-2.5 text-sm font-semibold text-black transition hover:bg-slate-200 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">{pending ? "Signing in…" : "Continue"}</motion.button>
-                {!gated && <motion.button whileTap={{ scale: 0.98 }} type="button" onClick={closeLogin} className="rounded-full border border-white/15 px-5 text-sm text-slate-300 hover:bg-white/10">Cancel</motion.button>}
+                <motion.button whileTap={{ scale: 0.98 }} type="button" onClick={closeLogin} className="rounded-full border border-white/15 px-5 text-sm text-slate-300 hover:bg-white/10">Cancel</motion.button>
               </div>
             </form>
           </motion.div>

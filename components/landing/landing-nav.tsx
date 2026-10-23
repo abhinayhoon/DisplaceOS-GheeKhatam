@@ -5,13 +5,12 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { useApp } from "@/components/providers";
 
 const LINKS = [
-  { href: "/dashboard", label: "Dashboard" },
   { href: "#roles", label: "Roles" },
   { href: "#capabilities", label: "Capabilities" },
 ];
 
 export default function LandingNav() {
-  const { openLogin, setPaletteOpen } = useApp();
+  const { openLogin, setPaletteOpen, user } = useApp();
   const { scrollY } = useScroll();
   const bg = useTransform(scrollY, [0, 120], [0, 1]);
   return (
@@ -22,6 +21,9 @@ export default function LandingNav() {
           Displace<span className="text-[#F59E0B]">OS</span>
         </Link>
         <ul className="flex items-center gap-1 text-xs text-slate-300 sm:gap-4">
+          <li>
+            {user ? <Link href="/dashboard" className="rounded px-2 py-1.5 transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F59E0B]">Dashboard</Link> : <button type="button" onClick={() => openLogin(null)} className="rounded px-2 py-1.5 transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F59E0B]">Dashboard</button>}
+          </li>
           {LINKS.map((l) => (
             <li key={l.href} className={l.href === "#capabilities" ? "hidden sm:block" : ""}>
               <Link href={l.href} className="rounded px-2 py-1.5 transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F59E0B]">{l.label}</Link>
@@ -34,9 +36,7 @@ export default function LandingNav() {
             <button type="button" onClick={() => setPaletteOpen(true)} className="rounded border border-white/15 px-2 py-1 font-mono text-[11px] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F59E0B]">Press ⌘K to search</button>
           </li>
           <li>
-            <Link href="/dashboard" className="rounded-full bg-[#F59E0B] px-3.5 py-1.5 font-semibold text-[#1a1100] transition hover:shadow-[0_0_24px_rgba(245,158,11,0.6)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
-              Open Command
-            </Link>
+            {user ? <Link href="/dashboard" className="rounded-full bg-[#F59E0B] px-3.5 py-1.5 font-semibold text-[#1a1100] transition hover:shadow-[0_0_24px_rgba(245,158,11,0.6)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Open Command</Link> : <button type="button" onClick={() => openLogin(null)} className="rounded-full bg-[#F59E0B] px-3.5 py-1.5 font-semibold text-[#1a1100] transition hover:shadow-[0_0_24px_rgba(245,158,11,0.6)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Open Command</button>}
           </li>
         </ul>
       </nav>

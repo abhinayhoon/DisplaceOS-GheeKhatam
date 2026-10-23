@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { useRef } from "react";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { EASE } from "@/lib/motion";
+import { useApp } from "@/components/providers";
 
 const WORDS = ["DISASTER", "RELIEF", "MADE", "SIMPLE"];
 
 export default function Hero() {
+  const { openLogin, user } = useApp();
+  const router = useRouter();
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
@@ -48,9 +52,9 @@ export default function Hero() {
           initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: EASE, delay: 0.95 }}
           className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row"
         >
-          <Link href="/dashboard" className="rounded-full bg-[#F59E0B] px-8 py-3.5 text-sm font-bold text-[#1a1100] shadow-[0_0_32px_rgba(245,158,11,0.4)] transition hover:shadow-[0_0_48px_rgba(245,158,11,0.7)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+          <button type="button" onClick={() => user ? router.push("/dashboard") : openLogin(null)} className="rounded-full bg-[#F59E0B] px-8 py-3.5 text-sm font-bold text-[#1a1100] shadow-[0_0_32px_rgba(245,158,11,0.4)] transition hover:shadow-[0_0_48px_rgba(245,158,11,0.7)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
             Enter Command Dashboard →
-          </Link>
+          </button>
           <Link href="#story" className="rounded-full border border-white/15 px-8 py-3.5 text-sm text-slate-300 transition hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#F59E0B]">
             See how it works
           </Link>

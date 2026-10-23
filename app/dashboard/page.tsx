@@ -1,6 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useApp } from "@/components/providers";
 import Navbar from "@/components/dashboard/navbar";
 import AlertBanner from "@/components/dashboard/alert-banner";
@@ -24,13 +26,17 @@ const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transiti
 
 export default function DashboardPage() {
   const { role, data, sessionPending } = useApp();
+  const router = useRouter();
+  useEffect(() => {
+    if (!sessionPending && !role) router.replace("/");
+  }, [role, router, sessionPending]);
   const m = data?.metrics;
   const stats: [string, number, string][] = [
     ["Critical camps", m?.criticalCamps ?? 0, "#EF4444"], ["Pending SOS", m?.pendingSOS ?? 0, "#F59E0B"],
     ["Active convoys", m?.activeConvoys ?? 0, "#38BDF8"], ["Registered survivors", m?.registeredSurvivors ?? 0, "#10B981"],
   ];
   if (!role) {
-    return <main className="flex flex-1 items-center justify-center text-sm text-slate-500">{sessionPending ? "Checking session…" : "Operator authentication required"}</main>;
+    return <main className="flex flex-1 items-center justify-center text-sm text-slate-500">Loading the public landing page…</main>;
   }
   return (
     <>

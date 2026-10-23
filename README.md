@@ -1,65 +1,41 @@
 # DisplaceOS
 
-**One shared operating picture for disaster relief teams.** DisplaceOS is a hackathon prototype that brings camp needs, supply requests, survivor records, and response dispatches into one role-based dashboard. It is designed to help teams see reported needs and coordinate the next step from a shared record.
+**A shared coordination workspace for disaster relief.** DisplaceOS brings camp needs, resource requests, response assignments, and delivery updates into one role-based view, helping coordination teams follow a request from the field to fulfillment.
 
-> **Prototype notice:** Weather context comes from an external forecast model, but it is not an official warning. DisplaceOS is not connected to government systems, emergency services, GPS trackers, dispatch consoles, radios, or field devices. Its operational scenario is sample data. It cannot verify that a vehicle departed, a route is safe, supplies arrived, or a person was evacuated. Do not use it to direct a real emergency response or enter real survivor information.
+## For judges
 
-## The problem we are exploring
+Open the deployed site and choose one of the three demo roles. No email or password is needed for the demo shortcuts:
 
-During a disaster, information about shelter capacity, essential supplies, and urgent cases can be spread across calls, messages, and separate spreadsheets. That makes it harder for a coordination team to understand where help is needed and what has already been requested.
+- **NDMA Command** for coordination and allocation
+- **Relief Camp Manager** for reporting needs and updating camp records
+- **NDRF Field Unit** for reviewing and updating assigned dispatches
 
-DisplaceOS explores a shared workflow: camps record needs, a government coordination role reviews and allocates resources, and a rescue team records dispatch progress. Each role sees the same server-backed records with permissions suited to its work.
+Try the full workflow: submit a request as a camp manager, review and approve it as NDMA Command, then update its dispatch and delivery as the field unit. Return to the coordination view to see the shared record. The government role also has controls to run and reset the sample crisis scenario. The demo database is shared by all visitors, so resetting it restores the common sample scenario.
 
-## Three roles, one workflow
+## What the workspace supports
 
-### Government coordination
+- Separate permissions for government coordination, relief camps, and rescue teams
+- Shared records for camps, stock, resource requests, dispatches, facilities, and displaced people
+- Request review, available-stock allocation, linked dispatches, and delivery updates
+- Field-entered stock verification with an audit history
+- A local action queue for reconnecting a device and syncing queued actions
+- Camp weather context from the Open-Meteo forecast model
+- Scenario controls for demonstrating how teams can coordinate a changing incident
 
-- Review camp status, requests, depot stock, and active dispatches.
-- Compare reported food stock with estimated runway and identify suggested transfers.
-- Approve a request to create a linked dispatch and allocate available depot stock.
-- Review field-entered stock counts and facility repair requests.
+Dashboard updates refresh from the shared application database while the page is open. Camp, person, and dispatch records in the judge environment are sample data. The weather card is a forecast model, not an official warning. Official alert, GPS, dispatch-system, and radio connections require authorized interfaces from the relevant agencies and operators.
 
-### Relief camp teams
+Urgency scores are prioritization heuristics. They are not medical triage or independently verified field measurements. Decisions in an actual response must follow the responsible agency's procedures and verified reports.
 
-- Submit requests for food, water, medicine, shelter, or evacuation support.
-- Record stock adjustments and register people at their assigned camp.
-- Update permitted survivor statuses and request facility repairs.
+## Local development
 
-### Rescue teams
-
-- Review active dispatch records and update route or progress status.
-- Record delivery in the shared workflow so the associated request and camp inventory can be updated.
-- Enter an observed food count when performing a field stock check.
-
-The urgency and stock consistency values are heuristics for prioritizing review. They are not clinical triage, probabilities, or independently verified measurements. A person must make operational decisions using verified field information and local procedures.
-
-## What works in this prototype
-
-- Role-based access for government, camp, and rescue-team accounts.
-- Shared camp, request, depot, dispatch, facility, and survivor records.
-- Resource request review, depot allocation, dispatch tracking, and delivery updates.
-- A device-local offline action queue that can be synchronized when the browser reconnects.
-- Operator-entered stock verification with a hash-linked audit history.
-- Weather model context for camp coordinates, refreshed from Open-Meteo and clearly separated from official warnings.
-- Optional synthetic scenario controls for demonstrations.
-
-The dashboard polls server records while visible. Polling is not a live connection to the field. The weather panel shows model output, not an observation from camp or an official warning. Open-Meteo's free API is intended for non-commercial use; commercial use requires its commercial service. Attribution is included in the dashboard. The offline queue uses browser storage, is not encrypted, can be lost if browser data is cleared, and does not use radio, mesh, or peer-to-peer networking.
-
-## Run the demo locally
-
-### Requirements
-
-- Node.js 20.9 or newer
-- Docker with Docker Compose
-
-### Setup
+Requirements: Node.js 20.9 or newer and Docker Compose.
 
 ```sh
 npm ci
 cp .env.example .env
 ```
 
-Set `BETTER_AUTH_SECRET` in `.env` to a private random string of at least 32 characters. Start the local database and prepare the sample data:
+Set a private `BETTER_AUTH_SECRET` of at least 32 characters in `.env`, then start and prepare the database:
 
 ```sh
 docker compose up -d postgres
@@ -69,31 +45,34 @@ npm run db:seed
 npm run dev
 ```
 
-Open <http://localhost:3000>. Seeding resets the demo camps, requests, dispatches, and sample people. It does not create user accounts.
+Open <http://localhost:3000>. Seeding recreates the sample camps, requests, dispatches, and people. It does not create email/password accounts. Use the role shortcuts on the sign-in screen.
 
-### Demo access
+## Deploy a judge demo
 
-For a local presentation only, set both values below in `.env`, restart the app, and use the demo role shortcuts on the sign-in screen:
+Use a managed PostgreSQL database dedicated to the demo. Configure these variables in the hosting provider before building:
 
 ```dotenv
+DATABASE_URL=<managed PostgreSQL connection string>
+BETTER_AUTH_SECRET=<private random value, at least 32 characters>
 DEMO_MODE=true
+PUBLIC_DEMO_MODE=true
 NEXT_PUBLIC_DEMO_MODE=true
 ```
 
-These shortcuts do not verify identity. Use only with the included sample scenario. Set both values to `false` for a deployed demo that uses provisioned accounts, and never enable demo shortcuts with real operational or personal data.
+Apply the database migrations and load the sample scenario once:
 
-## Troubleshooting
+```sh
+npm run db:migrate
+npm run db:seed
+```
 
-- **“The database is not reachable” on the sign-in screen:** start PostgreSQL with `docker compose up -d postgres`, then run `npm run db:migrate` and `npm run db:seed`. Keep the database running while using the app.
-- **“The database is missing application tables”:** run the migrations. For a fresh local demo database, seed the sample scenario after migrations.
-- **“BETTER_AUTH_SECRET is missing or too short”:** set a private value of at least 32 characters in `.env` and restart the development server.
-- **“Invalid email or password”:** use a provisioned operator account, or select a demo role when demo mode is enabled. Demo accounts are not email/password accounts.
+Then deploy the `main` branch. The `NEXT_PUBLIC_DEMO_MODE` value is embedded during the build, so rebuild after changing it. The public demo gate must be enabled on the server as well. Anyone with the demo URL can enter as any of the three roles, and demo actions edit the shared sample database. Keep real operational and personal information out of this database.
 
-The sign-in screen checks these dependencies before credentials are submitted, so setup problems are shown separately from invalid passwords.
+For an authenticated deployment, disable all three demo variables and provision named operator accounts through the trusted deployment environment. Camp users may request an account; a trusted administrator approves it. Government and rescue roles cannot be self-selected.
 
-## Create operator accounts
+## Demo account provisioning
 
-Camp users can submit a registration request, but cannot sign in until approved. Government and rescue roles cannot be self-selected. A trusted administrator provisions an account from a secure shell by setting these environment variables:
+Set these variables in a trusted shell, then run `npm run operator:provision`:
 
 ```dotenv
 OPERATOR_EMAIL=
@@ -103,31 +82,11 @@ OPERATOR_ROLE=GOV_AGENCY
 OPERATOR_CAMP_ID=
 ```
 
-Use `GOV_AGENCY`, `RESCUE_TEAM`, or `RELIEF_CAMP` for `OPERATOR_ROLE`. Set `OPERATOR_CAMP_ID` for a camp operator. Then run:
+Supported roles are `GOV_AGENCY`, `RESCUE_TEAM`, and `RELIEF_CAMP`. A camp operator also needs a valid `OPERATOR_CAMP_ID`. Never commit operator passwords or production secrets.
 
-```sh
-npm run operator:provision
-```
+## Technology and checks
 
-The provision command creates or updates the account and revokes its existing sessions. Keep operator credentials out of source control and rotate them if exposed.
-
-## Deploying a demonstration
-
-Use a managed PostgreSQL database and a host that supports the project's Next.js version. Configure `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `NODE_ENV=production`; use HTTPS. Set both demo mode variables to `false`. Apply migrations with `npm run db:migrate`, then provision named operator accounts through a trusted environment. Do not run `npm run db:seed` against a deployed database because it resets demo records.
-
-Configure the hosting proxy to overwrite the client IP header used by rate limiting. Do not trust forwarding headers supplied directly by a public client. Keep database backups and secrets under the hosting provider's access controls.
-
-Before any real-world pilot, the responsible organization would still need to validate identity and role assignment, field procedures, data protection and retention, incident audit requirements, backups and recovery, monitoring, accessibility, load and failure behavior, and training. The remaining connections need the relevant agency and hardware owners:
-
-- **Official weather warnings:** IMD publishes weather, nowcast, and warning APIs, but organizations must follow its terms and coordinate access with IMD. The dashboard's Open-Meteo model forecast is not a substitute. See the [IMD API reference](https://api.imd.gov.in/public/api_reference.html).
-- **Disaster alerts:** NDMA's SACHET CAP feed has agency integration requirements, including ETag caching. See the [SACHET integration guide](https://sachet.ndma.gov.in/docs/Integration_Guide_For_Agencies.pdf).
-- **Dispatch:** India's ERSS-112 is a state-centric system with computer-aided dispatch. Integration needs authorization and a supported interface from the relevant State/UT and its system operator. See the [Ministry of Home Affairs ERSS overview](https://www.mha.gov.in/nirbhayaerss-section).
-- **Vehicle GPS:** a tracking server, registered devices, and operator access are required. [Traccar's API](https://www.traccar.org/traccar-api/) provides a possible integration path when an agency operates or authorizes that service.
-- **Radio:** the agency's radio vendor, network, and authorized IP gateway determine the integration. A browser or AI API cannot access radio traffic by itself.
-
-This repository does not include those agency integrations or operational approvals.
-
-## Checks
+Next.js, React, TypeScript, PostgreSQL, and Prisma. GitHub Actions runs the quality checks on each push and pull request.
 
 ```sh
 npm run db:generate
@@ -138,9 +97,7 @@ npm test
 npm run build
 ```
 
-GitHub Actions runs the checks on pushes and pull requests.
-
-## Built by
+## Contributors
 
 - **Rohini Srivastava**, Lead
 - **Abhinay Pratap Singh**

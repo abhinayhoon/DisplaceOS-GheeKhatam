@@ -32,7 +32,9 @@ function secret() {
 }
 
 export function isDemoModeEnabled() {
-  return process.env.NODE_ENV !== "production" && process.env.DEMO_MODE === "true";
+  const enabled = process.env.DEMO_MODE === "true";
+  const explicitlyPublic = process.env.NODE_ENV === "production" && process.env.PUBLIC_DEMO_MODE === "true";
+  return enabled && (process.env.NODE_ENV !== "production" || explicitlyPublic);
 }
 
 const b64 = (s: string) => Buffer.from(s).toString("base64url");

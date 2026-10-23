@@ -1,9 +1,10 @@
 const LOCAL_DATABASE_HELP =
   "Start PostgreSQL with `docker compose up -d postgres`, then run `npm run db:migrate` and `npm run db:seed`.";
 
-export type ServiceReadinessIssue = "database" | "database_credentials" | "schema" | "secret";
+export type ServiceReadinessIssue = "database" | "database_credentials" | "schema" | "secret" | "demo_data";
 
 export function serviceReadinessMessage(issue: ServiceReadinessIssue) {
+  if (issue === "demo_data") return "The judge demo scenario has not been loaded. Run `npm run db:seed` once against the dedicated demo database.";
   if (process.env.NODE_ENV === "production") {
     return "The service is temporarily unavailable. Contact the system administrator.";
   }

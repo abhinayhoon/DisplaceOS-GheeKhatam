@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connection } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isDemoModeEnabled } from "@/lib/auth";
 import { serviceReadinessMessage } from "@/lib/service-errors";
 
 export async function GET() {
@@ -18,6 +19,9 @@ export async function GET() {
     `;
     if (!tables?.users || !tables.camps || !tables.rateLimits) {
       return NextResponse.json({ ready: false, message: serviceReadinessMessage("schema") }, { status: 503, headers: { "cache-control": "no-store" } });
+    }
+    if (isDemoModeEnabled() && await prisma.reliefCamp.count() === 0) {
+      return NextResponse.json({ ready: false, message: serviceReadinessMessage("demo_data") }, { status: 503, headers: { "cache-control": "no-store" } });
     }
     return NextResponse.json({ ready: true }, { headers: { "cache-control": "no-store" } });
   } catch {

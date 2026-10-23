@@ -90,15 +90,16 @@ export async function authenticate(input: { email?: unknown; password?: unknown;
   if (typeof input.demoBadgeId === "string" && isDemoModeEnabled()) {
     const op = OPERATORS.find((candidate) => candidate.badgeId === input.demoBadgeId);
     if (op) {
-      const camp = op.campName ? await prisma.reliefCamp.findFirst({ where: { name: op.campName } }) : null;
       return {
         id: `demo:${op.badgeId}`,
         badgeId: op.badgeId,
         name: op.name,
         email: `${op.badgeId.toLowerCase()}@demo.invalid`,
         role: op.role,
-        campId: camp?.id ?? null,
-        campName: camp?.name ?? op.campName,
+        // Demo profiles must remain available even while the sample scenario is
+        // being initialized. Camp ownership resolves from this stable name.
+        campId: null,
+        campName: op.campName,
       };
     }
   }

@@ -22,6 +22,12 @@ const SURVIVOR_STATUS = ["NEEDS_MEDEVAC", "SAFE_IN_CAMP", "REUNITED"];
 const ROUTE = ["CLEAR", "LANDSLIDE_DETOUR", "PROGRESS_25", "DELIVERED"];
 const REINFORCEMENTS = ["HELI_AIRLIFT_SQUAD", "MOBILE_ICU_TRAUMA_TEAM", "ARMY_ENGINEER_CORPS", "MOBILE_WASH_POWER_RIG"];
 
+/** Load the shared judge scenario once for a new demo database. */
+async function ensureDemoScenario(db: Tx | typeof prisma) {
+  if (!isDemoModeEnabled()) return;
+  if (await db.reliefCamp.count() === 0) await seedDemo(db);
+}
+
 function guard(user: SessionUser, ...roles: Role[]) {
   if (roles.length && !roles.includes(user.role)) throw new AuthError(403, `Requires role: ${roles.join(" or ")}`);
 }
@@ -121,8 +127,13 @@ async function ownCamp(tx: Tx, user: SessionUser) {
 }
 
 export async function getState(db: Tx | typeof prisma = prisma, viewer?: SessionUser): Promise<LiveState> {
+  await ensureDemoScenario(db);
+  const assignedCamp = viewer?.role === CAMP && !viewer.campId && viewer.campName
+    ? await db.reliefCamp.findFirst({ where: { name: viewer.campName } })
+    : null;
+  const viewerCampId = viewer?.campId ?? assignedCamp?.id;
   const survivorWhere = viewer?.role === CAMP
-    ? { campId: viewer.campId ?? "__unassigned__" }
+    ? { campId: viewerCampId ?? "__unassigned__" }
     : viewer?.role === RESCUE ? { status: "NEEDS_MEDEVAC" } : undefined;
   const [camps, requests, depots, dispatches, survivors, events, w, vlogs] = await Promise.all([
     db.reliefCamp.findMany({ orderBy: { name: "asc" } }),
@@ -136,7 +147,7 @@ export async function getState(db: Tx | typeof prisma = prisma, viewer?: Session
   ]);
   const acc = camps.map((c) => accuracyOf(c));
   const visibleSurvivors = viewer?.role === CAMP
-    ? survivors.filter((person) => person.campId === viewer.campId)
+    ? survivors.filter((person) => person.campId === viewerCampId)
     : viewer?.role === RESCUE
       ? survivors.filter((person) => person.status === "NEEDS_MEDEVAC")
       : survivors;

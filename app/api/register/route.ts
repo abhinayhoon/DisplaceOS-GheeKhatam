@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { hashPassword } from "better-auth/crypto";
 import { prisma } from "@/lib/prisma";
 import { rateLimited } from "@/lib/rate-limit";
+import { serviceFailureMessage, serviceFailureStatus } from "@/lib/service-errors";
 
 const ROLES = ["RELIEF_CAMP"];
 
@@ -12,7 +13,7 @@ export async function GET(req: Request) {
     return NextResponse.json(camps, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     console.error("Camp list request failed", error);
-    return NextResponse.json({ error: "Registration service unavailable" }, { status: 500 });
+    return NextResponse.json({ error: serviceFailureMessage(error, "Registration service unavailable") }, { status: serviceFailureStatus(error) });
   }
 }
 
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
     if (await rateLimited(req, "register", 10)) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   } catch (error) {
     console.error("Registration rate limit failed", error);
-    return NextResponse.json({ error: "Registration service unavailable" }, { status: 500 });
+    return NextResponse.json({ error: serviceFailureMessage(error, "Registration service unavailable") }, { status: serviceFailureStatus(error) });
   }
   const b = await req.json().catch(() => null);
   const name = String(b?.name ?? "").trim();
@@ -49,6 +50,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email already registered" }, { status: 409 });
     }
     console.error("Account registration failed", error);
-    return NextResponse.json({ error: "Registration service unavailable" }, { status: 500 });
+    return NextResponse.json({ error: serviceFailureMessage(error, "Registration service unavailable") }, { status: serviceFailureStatus(error) });
   }
 }

@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { AuthError, authenticate, cookieOpts, createSession, getSessionUser, revokeSession, SESSION_COOKIE } from "@/lib/auth";
 import { rateLimited } from "@/lib/rate-limit";
+import { serviceFailureMessage, serviceFailureStatus } from "@/lib/service-errors";
 
 function errorResponse(error: unknown) {
   if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
   console.error("Authentication request failed", error);
-  return NextResponse.json({ error: "Authentication service unavailable" }, { status: 500 });
+  return NextResponse.json({ error: serviceFailureMessage(error, "Authentication service unavailable") }, { status: serviceFailureStatus(error) });
 }
 
 export async function GET() {

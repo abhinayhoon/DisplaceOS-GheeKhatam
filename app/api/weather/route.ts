@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connection } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser, AuthError } from "@/lib/auth";
+import { serviceFailureMessage, serviceFailureStatus } from "@/lib/service-errors";
 
 type WeatherPoint = {
   time: string;
@@ -70,6 +71,7 @@ export async function GET() {
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("Weather request failed", error);
-    return NextResponse.json({ error: "Weather provider unavailable" }, { status: 502 });
+    const message = serviceFailureMessage(error, "Weather provider unavailable");
+    return NextResponse.json({ error: message }, { status: message === "Weather provider unavailable" ? 502 : serviceFailureStatus(error) });
   }
 }

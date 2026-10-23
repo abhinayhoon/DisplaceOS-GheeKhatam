@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/components/providers";
@@ -19,9 +19,24 @@ export default function OperatorModal() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
-
+  const [readinessMessage, setReadinessMessage] = useState("");
   const gated = path.startsWith("/dashboard") && !user && !sessionPending;
   const open = loginOpen || gated;
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    void fetch("/api/health", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json().catch(() => null);
+        setReadinessMessage(response.ok ? "" : result?.message ?? "Service readiness could not be confirmed.");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setReadinessMessage("Could not reach the DisplaceOS server. Check that it is running and try again.");
+      });
+    return () => controller.abort();
+  }, [open]);
+
   useOverlay(open, gated ? undefined : closeLogin);
 
   const go = async (identifier: string, credential?: string) => {
@@ -51,6 +66,7 @@ export default function OperatorModal() {
               <p className="mt-1 text-sm text-slate-400">Use your registered email and password.</p>
             </div>
             {requiredRole && <p className="relative mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-300">This action requires {ROLES[requiredRole].label}.</p>}
+            {readinessMessage && <p role="status" className="relative mt-4 rounded-xl border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs leading-relaxed text-rose-200">Service setup issue: {readinessMessage}</p>}
             {DEMO_ENABLED && (
               <ul className="relative mt-6 space-y-2">
                 {OPERATORS.map((operator) => {

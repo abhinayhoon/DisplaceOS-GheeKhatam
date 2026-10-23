@@ -82,6 +82,15 @@ NEXT_PUBLIC_DEMO_MODE=true
 
 These shortcuts do not verify identity. Use only with the included sample scenario. Set both values to `false` for a deployed demo that uses provisioned accounts, and never enable demo shortcuts with real operational or personal data.
 
+## Troubleshooting
+
+- **“The database is not reachable” on the sign-in screen:** start PostgreSQL with `docker compose up -d postgres`, then run `npm run db:migrate` and `npm run db:seed`. Keep the database running while using the app.
+- **“The database is missing application tables”:** run the migrations. For a fresh local demo database, seed the sample scenario after migrations.
+- **“BETTER_AUTH_SECRET is missing or too short”:** set a private value of at least 32 characters in `.env` and restart the development server.
+- **“Invalid email or password”:** use a provisioned operator account, or select a demo role when demo mode is enabled. Demo accounts are not email/password accounts.
+
+The sign-in screen checks these dependencies before credentials are submitted, so setup problems are shown separately from invalid passwords.
+
 ## Create operator accounts
 
 Camp users can submit a registration request, but cannot sign in until approved. Government and rescue roles cannot be self-selected. A trusted administrator provisions an account from a secure shell by setting these environment variables:

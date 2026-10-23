@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { ActionError, runAction, getState } from "@/lib/actions";
 import { AuthError, requireUser } from "@/lib/auth";
+import { serviceFailureMessage, serviceFailureStatus } from "@/lib/service-errors";
 
 function fail(e: unknown) {
   if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
   if (e instanceof ActionError) return NextResponse.json({ error: e.message }, { status: 400 });
   console.error("State API request failed", e);
-  return NextResponse.json({ error: "Request could not be completed" }, { status: 500 });
+  return NextResponse.json({ error: serviceFailureMessage(e, "Request could not be completed") }, { status: serviceFailureStatus(e) });
 }
 
 export async function GET() {

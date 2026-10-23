@@ -21,18 +21,14 @@ function Form({ demo }: { demo: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   const login = async (credentials: { email: string; password: string } | { demoBadgeId: string }) => {
     setLoading(true);
-    setError("");
     const ok = "demoBadgeId" in credentials
       ? await signIn(credentials.demoBadgeId)
       : await signIn(credentials.email, credentials.password);
     if (!ok) {
       setLoading(false);
-      const msg = "Invalid email or password, or this account is awaiting approval.";
-      setError(msg);
       return;
     }
     setLoading(false);
@@ -51,7 +47,6 @@ function Form({ demo }: { demo: boolean }) {
           <label htmlFor="password" className="mb-1 block text-xs text-slate-400">Password</label>
           <PasswordField id="password" value={password} onChange={setPassword} autoComplete="current-password" />
         </div>
-        {error && <p role="alert" className="text-sm text-[#EF4444]">{error}</p>}
         <button type="submit" disabled={loading} className="w-full rounded-full bg-white py-2.5 text-sm font-semibold text-black transition hover:bg-slate-200 active:scale-[0.98] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
           {loading ? "Signing in…" : "Sign in"}
         </button>

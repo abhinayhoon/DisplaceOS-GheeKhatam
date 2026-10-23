@@ -9,10 +9,10 @@ const STATUSES = ["NEEDS_MEDEVAC", "SAFE_IN_CAMP", "REUNITED"] as const;
 const COLOR: Record<string, string> = { NEEDS_MEDEVAC: "#EF4444", SAFE_IN_CAMP: "#10B981", REUNITED: "#38BDF8" };
 
 export default function SurvivorRegistry() {
-  const { data, survivorQuery, setSurvivorQuery, savePerson, busy, can } = useApp();
+  const { data, survivorQuery, setSurvivorQuery, setSurvivorStatus, busy, can } = useApp();
   const [filter, setFilter] = useState<string>("ALL");
   const q = survivorQuery.trim().toLowerCase();
-  const rows = (data?.people ?? []).filter(
+  const rows = (data?.survivors ?? []).filter(
     (p) => (filter === "ALL" || p.status === filter) && (!q || p.fullName.toLowerCase().includes(q) || p.familyGroupCode.toLowerCase().includes(q) || p.status.toLowerCase().includes(q)),
   );
   return (
@@ -34,17 +34,20 @@ export default function SurvivorRegistry() {
           <tbody>
             {rows.map((p) => (
               <tr key={p.id} className="border-t border-white/5">
-                <td className="py-2 text-slate-200">{p.fullName}</td>
+                <td className="py-2 text-slate-200">{p.fullName}{p.offline && <span className="ml-1 rounded bg-[#F59E0B]/20 px-1 text-[9px] text-[#F59E0B]">OFFLINE_QUEUED (Mesh Packet Ready)</span>}</td>
                 <td className="tabular-nums">{p.age}</td>
                 <td className="font-mono">{p.familyGroupCode}</td>
                 <td>{p.currentCampName}<span className="block text-[10px] text-slate-500">{p.district}</span></td>
                 <td className="text-slate-400">{p.medicalNeeds}</td>
                 <td>
                   <select aria-label={`Status for ${p.fullName}`} value={p.status} disabled={busy || !can("TRIAGE_STATUS")}
-                    onChange={(e) => savePerson({ ...p, status: e.target.value }, `${p.fullName} → ${e.target.value}`)}
+                    onChange={(e) => setSurvivorStatus(p.id, e.target.value, p.fullName)}
                     className="rounded border border-white/10 bg-[#030712] px-2 py-1 text-xs" style={{ color: COLOR[p.status] }}>
                     {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
+                  <button type="button" aria-label={`Cycle status for ${p.fullName}`} disabled={busy || !can("TRIAGE_STATUS")}
+                    onClick={() => setSurvivorStatus(p.id, STATUSES[(STATUSES.indexOf(p.status as (typeof STATUSES)[number]) + 1) % STATUSES.length], p.fullName)}
+                    className="ml-1 rounded border border-white/10 px-1.5 py-1 text-[10px] text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-40">↻</button>
                 </td>
               </tr>
             ))}

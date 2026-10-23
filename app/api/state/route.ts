@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getLiveState, rebalanceSurplus, simulateFlashFlood, createResourceRequest, updateDispatchStatus, upsertDisplacedPerson, approveRequest, adjustCampStock } from "@/lib/actions";
-import { AuthError } from "@/lib/session";
+import { runAction, getState } from "@/lib/actions";
+import { AuthError, requireUser } from "@/lib/auth";
 
 function fail(e: unknown) {
   if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
@@ -9,7 +9,8 @@ function fail(e: unknown) {
 
 export async function GET() {
   try {
-    return NextResponse.json(await getLiveState());
+    await requireUser();
+    return NextResponse.json(await getState());
   } catch (e) {
     return fail(e);
   }
@@ -17,25 +18,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const user = await requireUser();
     const { action, payload } = await req.json();
-    switch (action) {
-      case "rebalance":
-        return NextResponse.json(await rebalanceSurplus());
-      case "flood":
-        return NextResponse.json(await simulateFlashFlood());
-      case "createRequest":
-        return NextResponse.json(await createResourceRequest(payload));
-      case "dispatchStatus":
-        return NextResponse.json(await updateDispatchStatus(payload.id, payload.routeStatus));
-      case "person":
-        return NextResponse.json(await upsertDisplacedPerson(payload));
-      case "approve":
-        return NextResponse.json(await approveRequest(payload.id));
-      case "stock":
-        return NextResponse.json(await adjustCampStock(payload.campId, payload.field, payload.delta));
-      default:
-        return NextResponse.json({ error: "unknown action" }, { status: 400 });
-    }
+    const out = await runAction(user, String(action), payload);
+    return NextResponse.json({ ok: true, ...out });
   } catch (e) {
     return fail(e);
   }

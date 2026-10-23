@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useApp } from "@/components/providers";
-import { card } from "@/lib/types";
+import { card, runwayHours } from "@/lib/types";
 import RequestsPanel from "./requests-panel";
 
 const TYPES = ["FOOD", "WATER", "MEDICINE", "SHELTER", "EVACUATION"];
@@ -13,24 +13,19 @@ const FIELDS = [
 const input = "w-full rounded-lg border border-white/10 bg-[#030712] px-3 py-2 text-sm text-white outline-none focus:border-[#38BDF8]";
 
 export default function CampView() {
-  const { data, selectedCampId, setSelectedCampId, createRequest, savePerson, adjustStock, busy } = useApp();
+  const { data, user, createRequest, registerSurvivor, adjustStock, busy, offline } = useApp();
   const [type, setType] = useState("FOOD");
   const [qty, setQty] = useState("500");
   const [p, setP] = useState({ fullName: "", age: "30", medicalNeeds: "", familyGroupCode: "" });
   if (!data) return null;
-  const camp = data.camps.find((c) => c.id === selectedCampId) ?? data.camps[0];
+  const camp = data.camps.find((c) => c.name === user?.campName) ?? data.camps[0];
   if (!camp) return null;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <label htmlFor="camp-sel" className="text-xs text-slate-400">Managing camp</label>
-        <select id="camp-sel" value={camp.id} onChange={(e) => setSelectedCampId(e.target.value)} className={`${input} w-auto`}>
-          {data.camps.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.district}</option>)}
-        </select>
-      </div>
+      <p className="text-xs text-slate-400">Managing <b className="text-white">{camp.name}</b> · {camp.district}{offline && <span className="ml-2 rounded bg-[#F59E0B]/15 px-1.5 py-0.5 text-[10px] text-[#F59E0B]">OFFLINE FIELD MODE · writes queue as mesh packets</span>}</p>
       <div className="grid gap-4 lg:grid-cols-3">
-        <form className={`${card} space-y-3 p-4`} onSubmit={async (e) => { e.preventDefault(); await createRequest({ campId: camp.id, resourceType: type, quantityNeeded: Math.max(1, Number(qty) || 1) }); }}>
+        <form className={`${card} space-y-3 p-4`} onSubmit={async (e) => { e.preventDefault(); const ok = await createRequest({ resourceType: type, quantityNeeded: Math.max(1, Number(qty) || 1) }); if (ok) { setType("FOOD"); setQty("500"); } }}>
           <h2 className="text-sm font-semibold text-white">🆘 Submit SOS Resource Request</h2>
           <label className="block text-xs text-slate-400">Resource
             <select value={type} onChange={(e) => setType(e.target.value)} className={`${input} mt-1`}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select>
@@ -43,14 +38,15 @@ export default function CampView() {
 
         <section className={`${card} p-4`}>
           <h2 className="mb-3 text-sm font-semibold text-white">Live stock · {camp.name}</h2>
+          <p className="-mt-2 mb-3 text-xs text-slate-400">Food runway {runwayHours(camp).toFixed(1)}h · burn {camp.burnRatePerHour}/h</p>
           <ul className="space-y-2">
             {FIELDS.map(([f, l, step]) => (
               <li key={f} className="flex items-center justify-between text-sm">
                 <span className="text-slate-400">{l}</span>
                 <span className="flex items-center gap-2">
-                  <motion.button whileTap={{ scale: 0.98 }} type="button" aria-label={`Decrease ${l}`} disabled={busy} onClick={() => adjustStock(camp.id, f, -step)} className="size-7 rounded border border-white/10 hover:bg-white/5 disabled:opacity-40">−</motion.button>
+                  <motion.button whileTap={{ scale: 0.98 }} type="button" aria-label={`Decrease ${l}`} disabled={busy} onClick={() => adjustStock(f, -step)} className="size-7 rounded border border-white/10 hover:bg-white/5 disabled:opacity-40">−</motion.button>
                   <span className="w-14 text-center font-mono tabular-nums text-white">{camp[f]}</span>
-                  <motion.button whileTap={{ scale: 0.98 }} type="button" aria-label={`Increase ${l}`} disabled={busy} onClick={() => adjustStock(camp.id, f, step)} className="size-7 rounded border border-white/10 hover:bg-white/5 disabled:opacity-40">+</motion.button>
+                  <motion.button whileTap={{ scale: 0.98 }} type="button" aria-label={`Increase ${l}`} disabled={busy} onClick={() => adjustStock(f, step)} className="size-7 rounded border border-white/10 hover:bg-white/5 disabled:opacity-40">+</motion.button>
                 </span>
               </li>
             ))}
@@ -59,7 +55,7 @@ export default function CampView() {
 
         <form className={`${card} space-y-3 p-4`} onSubmit={async (e) => {
           e.preventDefault();
-          const ok = await savePerson({ ...p, age: Math.max(0, Number(p.age) || 0), medicalNeeds: p.medicalNeeds || "None", currentCampName: camp.name, district: camp.district });
+          const ok = await registerSurvivor({ ...p, age: Math.max(0, Number(p.age) || 0), medicalNeeds: p.medicalNeeds || "None" });
           if (ok) setP({ fullName: "", age: "30", medicalNeeds: "", familyGroupCode: "" });
         }}>
           <h2 className="text-sm font-semibold text-white">Register Displaced Person</h2>

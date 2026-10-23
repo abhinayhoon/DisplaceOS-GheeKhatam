@@ -1,19 +1,8 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
 
-export async function proxy(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (pathname.startsWith("/dashboard")) {
-    if (!session) {
-      const url = new URL("/login", req.url);
-      url.searchParams.set("next", pathname + search);
-      return NextResponse.redirect(url);
-    }
-  } else if (session) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
-  }
+// Auth is enforced server-side in /api/state and lib/auth.ts; the dashboard renders its own login gate.
+export function proxy() {
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/dashboard/:path*", "/login", "/signup"] };
+export const config = { matcher: ["/dashboard/:path*"] };

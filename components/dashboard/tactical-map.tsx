@@ -3,6 +3,8 @@
 import { motion } from "framer-motion";
 import { useApp } from "@/components/providers";
 import { campTone, card, runwayHours, TONE_HEX } from "@/lib/types";
+import { accuracyOf } from "@/lib/accuracy";
+import { FACILITY_KEYS, health, parseFacilities } from "@/lib/facilities";
 
 const W = 800, H = 500;
 const px = (lng: number) => ((lng - 77.9) / (79.5 - 77.9)) * (W - 60) + 30;
@@ -21,7 +23,7 @@ const DISTRICTS = [
 ];
 
 export default function TacticalMap() {
-  const { data, selectedCampId, setSelectedCampId } = useApp();
+  const { data, selectedCampId, setSelectedCampId, selectedDepot, setSelectedDepot } = useApp();
   if (!data) return <div className={`${card} h-[420px] animate-pulse`} />;
   const camps = data.camps;
   const pos = (name: string): [number, number] | null => {
@@ -47,7 +49,7 @@ export default function TacticalMap() {
             const a = pos(d.originName), b = pos(d.targetCampName);
             if (!a || !b) return null;
             const detour = d.routeStatus === "LANDSLIDE_DETOUR";
-            const color = detour ? "#F59E0B" : "#38BDF8";
+            const color = d.resourceType === "REINFORCEMENT" ? "#A855F7" : detour ? "#F59E0B" : "#38BDF8";
             const t = d.progressPercent / 100;
             const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2 - (detour ? 50 : 20);
             const cx = (1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * mx + t * t * b[0];
@@ -64,7 +66,9 @@ export default function TacticalMap() {
           {Object.keys(DEPOTS).map((n) => {
             const p = pos(n)!;
             return (
-              <g key={n}>
+              <g key={n} role="button" tabIndex={0} aria-label={`${n} depot`} className="cursor-pointer outline-none"
+                onClick={() => { setSelectedCampId(null); setSelectedDepot(selectedDepot === n ? null : n); }}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedCampId(null); setSelectedDepot(selectedDepot === n ? null : n); } }}>
                 <rect x={p[0] - 7} y={p[1] - 7} width={14} height={14} rx={3} fill="#0F1624" stroke="#38BDF8" strokeWidth={1.5} />
                 <text x={p[0]} y={p[1] + 3.5} textAnchor="middle" fontSize="9" fill="#38BDF8">▣</text>
                 <text x={p[0]} y={p[1] + 22} textAnchor="middle" fontSize="9" fill="#94a3b8">{n}</text>
@@ -76,8 +80,8 @@ export default function TacticalMap() {
             const x = px(c.lng), y = py(c.lat), active = c.id === selectedCampId;
             return (
               <g key={c.id} role="button" tabIndex={0} aria-label={`${c.name}, ${tone}, runway ${runwayHours(c).toFixed(1)} hours`} className="cursor-pointer outline-none"
-                onClick={() => setSelectedCampId(active ? null : c.id)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedCampId(active ? null : c.id); } }}>
+                onClick={() => { setSelectedDepot(null); setSelectedCampId(active ? null : c.id); }}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedDepot(null); setSelectedCampId(active ? null : c.id); } }}>
                 {tone === "CRITICAL" && (
                   <motion.circle cx={x} cy={y} fill={color} initial={{ r: 8, opacity: 0.5 }} animate={{ r: 26, opacity: 0 }} transition={{ duration: 1.6, repeat: Infinity }} />
                 )}
@@ -95,7 +99,7 @@ export default function TacticalMap() {
         </div>
       </div>
       <aside className="border-t border-white/10 p-4 lg:border-l lg:border-t-0">
-        {sel ? <CampInspector id={sel.id} /> : <p className="text-sm text-slate-500">Select a camp node to inspect live inventory.</p>}
+        {sel ? <CampInspector id={sel.id} /> : selectedDepot ? <DepotInspector name={selectedDepot} /> : <p className="text-sm text-slate-500">Select a camp or depot node to inspect live inventory.</p>}
       </aside>
     </div>
   );
@@ -131,6 +135,35 @@ function CampInspector({ id }: { id: string }) {
               <div className="h-full rounded-full" style={{ width: `${Math.min(100, (v / Math.max(need, 1)) * 100)}%`, background: v < need * 0.3 ? "#EF4444" : "#10B981" }} />
             </div>
           </li>
+        ))}
+      </ul>
+      <p className="mt-4 text-[10px] uppercase tracking-widest text-slate-500">Facilities · 🛡️ accuracy {accuracyOf(c).score}%</p>
+      <ul className="mt-1 grid grid-cols-5 gap-1 text-center text-[10px]">
+        {FACILITY_KEYS.map((k) => {
+          const v = health(parseFacilities(c))[k];
+          return <li key={k} className="rounded bg-white/5 p-1"><span className="block text-slate-500">{k.slice(0, 4)}</span><span className="font-mono" style={{ color: v < 35 ? "#EF4444" : v < 65 ? "#F59E0B" : "#10B981" }}>{v}%</span></li>;
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function DepotInspector({ name }: { name: string }) {
+  const { data, setSelectedDepot } = useApp();
+  const d = data?.depots.find((x) => x.name === name);
+  if (!d) return null;
+  return (
+    <div>
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="font-semibold text-white">{d.name}</h3>
+          <p className="text-xs text-slate-500">{d.district} · DEPOT</p>
+        </div>
+        <motion.button whileTap={{ scale: 0.98 }} type="button" aria-label="Clear selection" onClick={() => setSelectedDepot(null)} className="text-slate-500 hover:text-white">✕</motion.button>
+      </div>
+      <ul className="mt-4 space-y-2 text-xs">
+        {([["Food", d.foodStock], ["Water (L)", d.waterStock], ["Medicine", d.medicineStock], ["Shelter", d.shelterStock]] as const).map(([l, v]) => (
+          <li key={l} className="flex justify-between"><span className="text-slate-400">{l}</span><span className="font-mono tabular-nums text-white">{v}</span></li>
         ))}
       </ul>
     </div>

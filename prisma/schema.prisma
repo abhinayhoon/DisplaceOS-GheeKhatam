@@ -21,6 +21,8 @@ model ReliefCamp {
   medicalKits      Int
   shelterTents     Int
   burnRatePerHour  Int
+  facilitiesJson   String   @default("{}")
+  verificationJson String   @default("{}")
   updatedAt        DateTime @updatedAt
 }
 
@@ -61,6 +63,7 @@ model RescueDispatch {
   etaMinutes     Int
   routeStatus    String // CLEAR | LANDSLIDE_DETOUR | DELIVERED
   progressPercent Int
+  stockApplied   Boolean @default(false)
 }
 
 model DisplacedPerson {
@@ -124,4 +127,36 @@ model Verification {
   expiresAt  DateTime
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model TriageWeights {
+  id               String   @id
+  routeReliability Float    @default(1)
+  burnDrift        Float    @default(1)
+  facilityPenalty  Float    @default(0.25)
+  historyJson      String   @default("[]")
+  updatedAt        DateTime @updatedAt
+}
+
+model VerificationLog {
+  id             String   @id @default(cuid())
+  campId         String
+  campName       String
+  source         String
+  reported       Int
+  modelExpected  Int
+  groundTruth    Int
+  accuracyBefore Int
+  accuracyAfter  Int
+  hash           String
+  prevHash       String
+  by             String
+  createdAt      DateTime @default(now())
+}
+
+model TelemetryEvent {
+  id        String   @id @default(cuid())
+  kind      String
+  message   String
+  createdAt DateTime @default(now())
 }

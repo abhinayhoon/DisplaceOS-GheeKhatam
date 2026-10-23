@@ -5,6 +5,8 @@ import "./globals.css";
 import { AppProvider } from "@/components/providers";
 import AmbientBg from "@/components/ambient-bg";
 import CommandPalette from "@/components/command-palette";
+import SmoothScroll from "@/components/smooth-scroll";
+import OperatorModal from "@/components/auth/operator-modal";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,9 +31,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col bg-[#030712] text-slate-200">
         <AppProvider>
-          <AmbientBg />
-          {children}
+          <SmoothScroll>
+            <AmbientBg />
+            {children}
+          </SmoothScroll>
           <CommandPalette />
+          <OperatorModal />
           <Toaster richColors position="top-right" theme="dark" />
         </AppProvider>
       </body>

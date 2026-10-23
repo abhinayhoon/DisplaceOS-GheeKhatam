@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Command } from "cmdk";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/components/providers";
+import { OPERATORS, ROLES } from "@/lib/types";
 
 const item =
   "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 data-[selected=true]:bg-[#38BDF8]/15 data-[selected=true]:text-white";
@@ -11,7 +12,7 @@ const heading =
   "[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-slate-500";
 
 export default function CommandPalette() {
-  const { data, paletteOpen, setPaletteOpen, setSelectedCampId, setSurvivorQuery, rebalance, flood } = useApp();
+  const { data, paletteOpen, setPaletteOpen, setSelectedCampId, setSurvivorQuery, rebalance, flood, reset, openLogin, login, user, offline, setOffline, setMeshOpen } = useApp();
   const router = useRouter();
 
   useEffect(() => {
@@ -25,7 +26,7 @@ export default function CommandPalette() {
     return () => window.removeEventListener("keydown", onKey);
   }, [paletteOpen, setPaletteOpen]);
 
-  const go = (fn: () => void) => () => {
+  const go = (fn: () => void | Promise<unknown>) => () => {
     setPaletteOpen(false);
     fn();
   };
@@ -51,6 +52,16 @@ export default function CommandPalette() {
           <Command.Item className={item} onSelect={go(() => { router.push("/dashboard"); flood(); })}>
             ⚡ Simulate Flash Flood SOS
           </Command.Item>
+          <Command.Item className={item} onSelect={go(() => { router.push("/dashboard"); reset(); })}>↺ Reset Crisis Demo</Command.Item>
+          <Command.Item className={item} onSelect={go(() => openLogin(null))}>🔑 Switch operator credentials</Command.Item>
+          {OPERATORS.filter((o) => o.badgeId !== user?.badgeId).map((o) => (
+            <Command.Item key={o.badgeId} className={item} value={`switch role ${o.badgeId} ${ROLES[o.role].short}`} onSelect={go(async () => { if (await login(o.badgeId)) router.push("/dashboard"); })}>
+              🔁 Switch to {ROLES[o.role].short}
+              <span className="ml-auto font-mono text-xs text-slate-500">{o.badgeId}</span>
+            </Command.Item>
+          ))}
+          <Command.Item className={item} onSelect={go(() => setOffline(!offline))}>📡 Toggle Offline Field Mode</Command.Item>
+          <Command.Item className={item} onSelect={go(() => { router.push("/dashboard"); setMeshOpen(true); })}>⚡ Open Mesh Sync Drawer</Command.Item>
         </Command.Group>
         <Command.Group heading="Camps" className={heading}>
           {data?.camps.map((c) => (
@@ -61,7 +72,7 @@ export default function CommandPalette() {
           ))}
         </Command.Group>
         <Command.Group heading="Displaced survivors" className={heading}>
-          {data?.people.map((p) => (
+          {data?.survivors.map((p) => (
             <Command.Item key={p.id} className={item} value={`survivor ${p.fullName} ${p.familyGroupCode}`} onSelect={go(() => { setSurvivorQuery(p.fullName); router.push("/dashboard#registry"); })}>
               🔎 {p.fullName}
               <span className="ml-auto text-xs text-slate-500">{p.familyGroupCode} · {p.currentCampName}</span>

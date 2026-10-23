@@ -1,18 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useApp } from "@/components/providers";
+import { useOverlay } from "@/lib/use-scroll-lock";
 
 export default function TriageDrawer() {
   const { data, triageId, setTriageId } = useApp();
+  const w = data?.weights;
   const r = data?.requests.find((x) => x.id === triageId);
-  useEffect(() => {
-    if (!triageId) return;
-    const h = (e: KeyboardEvent) => e.key === "Escape" && setTriageId(null);
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [triageId, setTriageId]);
+  useOverlay(!!triageId, () => setTriageId(null));
 
   let j: Record<string, unknown> = {};
   try { j = r ? JSON.parse(r.reasoningJson) : {}; } catch { j = { raw: r?.reasoningJson }; }
@@ -39,6 +35,25 @@ export default function TriageDrawer() {
               <p className="mt-2 font-mono text-xs text-slate-300">Occupancy × Deficit ÷ Survival Runway Hours</p>
               {calc !== null && <p className="mt-1 font-mono text-xs text-slate-400">{occ} × {def} ÷ {run} = {calc}</p>}
             </div>
+            {w && (
+              <div className="mt-4 rounded-xl border border-[#A855F7]/30 bg-[#A855F7]/10 p-4">
+                <p className="text-[10px] uppercase tracking-widest text-[#A855F7]">Reinforcement Learning Weight Calibration</p>
+                <p className="mt-1 font-mono text-[11px] text-slate-400">score = base × drift × (1 + penalty × facilityDeficit) ÷ routeReliability</p>
+                <dl className="mt-3 space-y-2 text-xs">
+                  {([["Route Reliability Weight", w.routeReliability, 0.5, 1.5], ["Burn-Rate Drift Multiplier", w.burnDrift, 1, 1.5], ["Facility Deficit Penalty", w.facilityPenalty, 0.1, 0.6]] as const).map(([l, v, lo, hi]) => (
+                    <div key={l}>
+                      <div className="flex justify-between"><dt className="text-slate-300">{l}</dt><dd className="font-mono tabular-nums text-white">{v.toFixed(3)}</dd></div>
+                      <div className="mt-1 h-1 rounded-full bg-white/10"><motion.div className="h-full rounded-full bg-[#A855F7]" initial={false} animate={{ width: `${((v - lo) / (hi - lo)) * 100}%` }} /></div>
+                    </div>
+                  ))}
+                </dl>
+                <h4 className="mb-1 mt-3 text-[10px] uppercase tracking-widest text-slate-500">Recent calibrations</h4>
+                <ul data-lenis-prevent className="max-h-28 space-y-1 overflow-y-auto font-mono text-[10px] text-slate-400">
+                  {w.history.length === 0 && <li className="text-slate-600">No calibration events yet. Deliver a convoy or toggle a landslide detour.</li>}
+                  {w.history.slice(0, 8).map((h, i) => <li key={i}><span className="text-[#A855F7]">{h.trigger}</span> · {h.weights}</li>)}
+                </ul>
+              </div>
+            )}
             <div className={`mt-4 rounded-xl border p-4 text-sm ${r.duplicateFlag ? "border-[#F59E0B]/40 bg-[#F59E0B]/10 text-[#F59E0B]" : "border-[#10B981]/30 bg-[#10B981]/10 text-[#10B981]"}`}>
               {r.duplicateFlag ? "⚠ Duplicate check: FLAGGED — overlaps an active or delivered request" : "✓ Duplicate check: CLEAR — unique request"}
             </div>

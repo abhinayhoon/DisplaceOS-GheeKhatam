@@ -1,4 +1,6 @@
-import { toNextJsHandler } from "better-auth/next-js";
-import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
 
-export const { GET, POST } = toNextJsHandler(auth);
+// Legacy better-auth endpoint retired; see app/api/auth/route.ts.
+const gone = () => NextResponse.json({ error: "Moved to /api/auth" }, { status: 410 });
+export const GET = gone;
+export const POST = gone;

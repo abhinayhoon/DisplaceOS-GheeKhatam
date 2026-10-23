@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useInView } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { useApp } from "@/components/providers";
+import { OPERATORS } from "@/lib/types";
 import { EASE } from "@/lib/motion";
 import SpotlightCard from "./spotlight-card";
 import Reveal from "./reveal";
@@ -13,7 +16,7 @@ const TABS: { key: string; label: string; bullets: string[]; preview: ReactNode 
     preview: (
       <div className="space-y-3">
         <Row l="Camp Delta · Chamoli" r="Runway 0.0h" c="#EF4444" tag="CRITICAL" />
-        <Row l="Camp Alpha · Uttarkashi" r="Food 2200 / 410 people" c="#F59E0B" tag="OVERFLOW" />
+        <Row l="Camp Alpha · Uttarkashi" r="Food 5280 / 410 people" c="#F59E0B" tag="OVERFLOW" />
         <Row l="Camp Gamma · Rudraprayag" r="Medical kits 0" c="#EF4444" tag="CRITICAL" />
         <div className="rounded-lg bg-[#10B981] py-2.5 text-center text-xs font-bold text-[#04120C]">🧠 1-Click Auto-Rebalance Surplus</div>
       </div>
@@ -60,6 +63,8 @@ export default function RoleTabs() {
   const inView = useInView(ref, { amount: 0.5 });
   const [i, setI] = useState(0);
   const [manual, setManual] = useState(false);
+  const { login } = useApp();
+  const router = useRouter();
   useEffect(() => {
     if (!inView || manual) return;
     const t = setInterval(() => setI((v) => (v + 1) % TABS.length), 5000);
@@ -96,6 +101,12 @@ export default function RoleTabs() {
                   <span className="font-mono text-sm text-[#F59E0B]">0{k + 1}</span>{b}
                 </motion.li>
               ))}
+              <li>
+                <button type="button" onClick={async () => { if (await login(OPERATORS[i].badgeId)) router.push("/dashboard"); }}
+                  className="rounded-full bg-[#F59E0B] px-6 py-2.5 text-sm font-bold text-[#1a1100] transition hover:shadow-[0_0_24px_rgba(245,158,11,0.6)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+                  Enter as {tab.label} →
+                </button>
+              </li>
             </ul>
           </motion.div>
         </AnimatePresence>

@@ -13,9 +13,9 @@ export async function GET() {
 
   try {
     const [tables] = await prisma.$queryRaw<Array<{ users: string | null; camps: string | null; rateLimits: string | null }>>`
-      SELECT to_regclass('"User"') AS users,
-             to_regclass('"ReliefCamp"') AS camps,
-             to_regclass('"RateLimitBucket"') AS "rateLimits"
+      SELECT to_regclass('"User"')::text AS users,
+             to_regclass('"ReliefCamp"')::text AS camps,
+             to_regclass('"RateLimitBucket"')::text AS "rateLimits"
     `;
     if (!tables?.users || !tables.camps || !tables.rateLimits) {
       return NextResponse.json({ ready: false, message: serviceReadinessMessage("schema") }, { status: 503, headers: { "cache-control": "no-store" } });
@@ -24,8 +24,8 @@ export async function GET() {
       return NextResponse.json({ ready: false, message: serviceReadinessMessage("demo_data") }, { status: 503, headers: { "cache-control": "no-store" } });
     }
     return NextResponse.json({ ready: true }, { headers: { "cache-control": "no-store" } });
-  } catch {
-    console.warn("Readiness check reports the database is unavailable");
+  } catch (error) {
+    console.warn("Readiness check failed", error instanceof Error ? error.message : "Unknown error");
     return NextResponse.json({ ready: false, message: serviceReadinessMessage("database") }, { status: 503, headers: { "cache-control": "no-store" } });
   }
 }
